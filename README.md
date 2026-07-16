@@ -8,6 +8,21 @@ secrets) while they are still on your login node, not after they reach GitHub.
 Built for scientific codebases on HPC (rootless install, no Docker, works
 offline), but it is generic — point it at any git repo.
 
+## Status
+
+Verified on Derecho (NCAR) as the local + sanitizer half of a three-plane
+DevSecOps setup for CAM (the cloud plane — secret + SBOM/CVE + AI audit on every
+PR — lives in the target repo's `.github/`):
+
+- **Local gate** — gitleaks, `syft → grype → VEX`, and the Claude AI audit all
+  run locally against a repo's own config; a `pre-push` hook blocks pushes on
+  findings. Reuses the target repo's `.gitleaks.toml` / `.vex/openvex.json` /
+  `ai_audit.py`, so local and cloud results never drift.
+- **Sanitizer plane** — `tools/asan.sh` compiles and runs a Fortran/C reproducer
+  under `ifx -fsanitize=address`; confirmed it catches a Fortran
+  heap-buffer-overflow with exact `file:line`. `hpc/asan-cam.pbs` scaffolds the
+  full-model run.
+
 ## Why run it locally first?
 
 - 🔒 **Secrets never leave your machine.** Once a key is pushed it is compromised

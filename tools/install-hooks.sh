@@ -11,7 +11,7 @@ set -euo pipefail
 
 REPO="${1:-$PWD}"
 REPO="$(cd "$REPO" && git rev-parse --show-toplevel)"
-HOOKS_DIR="$(git -C "$REPO" rev-parse --git-path hooks)"
+HOOKS_DIR="$(git -C "$REPO" rev-parse --absolute-git-dir)/hooks"
 SELF="$(cd "$(dirname "$0")/.." && pwd)"
 
 mkdir -p "$HOOKS_DIR"

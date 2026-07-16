@@ -29,6 +29,8 @@ MODE=""            # staged | worktree | vs-remote
 BASE=""
 BLOCK=0
 DO_AI=1
+DO_FANALYZER=0
+MODDIR=""
 REPO=""
 
 while [ $# -gt 0 ]; do
@@ -39,6 +41,8 @@ while [ $# -gt 0 ]; do
     --base)      BASE="$2"; shift ;;
     --block)     BLOCK=1 ;;
     --no-ai)     DO_AI=0 ;;
+    --fanalyzer) DO_FANALYZER=1 ;;
+    --moddir)    MODDIR="$2"; shift ;;
     -h|--help)   sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*)          echo "unknown option: $1" >&2; exit 2 ;;
     *)           REPO="$1" ;;
@@ -113,16 +117,25 @@ else
 fi
 
 # ---- 3. AI code audit (reuse the target repo's ai_audit.py) -----------------
+# Pick up the API key from an optional 0600 env file if not already exported.
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$HOME/.config/hpc-devsecops.env" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.config/hpc-devsecops.env"
+fi
+
 AUDIT="$REPO/.github/scripts/ai_audit.py"
+# Prefer the hpc-devsecops venv (which has the anthropic SDK) over system python.
+PYBIN="${HPC_DEVSECOPS_HOME:-$HOME/hpc-devsecops}/.venv/bin/python"
+[ -x "$PYBIN" ] || PYBIN=python3
 if [ "$DO_AI" = 1 ] && [ -f "$AUDIT" ]; then
-  if ! python3 -c "import anthropic" >/dev/null 2>&1; then
+  if ! "$PYBIN" -c "import anthropic" >/dev/null 2>&1; then
     echo "  🤖 ai-audit     : ⚠️ 'anthropic' not installed — run: pip install anthropic"
     AI_STATE="unavailable"
   elif [ -z "${ANTHROPIC_API_KEY:-}" ]; then
     echo "  🤖 ai-audit     : ⚠️ ANTHROPIC_API_KEY not set (login node has egress) — UNREVIEWED"
     AI_STATE="unreviewed"
   else
-    ( cd "$OUT" && python3 "$AUDIT" "$OUT/pr.diff" >/dev/null 2>&1 )
+    ( cd "$OUT" && "$PYBIN" "$AUDIT" "$OUT/pr.diff" >/dev/null 2>&1 )
     if [ -f "$OUT/ai-audit.sarif" ]; then
       AI_HIGH=$(python3 -c "import json;print(sum(1 for r in json.load(open('$OUT/ai-audit.sarif'))['runs'][0]['results'] if r.get('level')=='error'))" 2>/dev/null || echo 0)
       AI_STATE="reviewed"
@@ -136,6 +149,22 @@ elif [ "$DO_AI" = 0 ]; then
   echo "  🤖 ai-audit     : skipped (--no-ai)"
 else
   echo "  🤖 ai-audit     : ⚠️ $AUDIT not found in target repo (skip)"
+fi
+
+# ---- 4. (HPC) Fortran static analysis (gfortran -fanalyzer, opt-in) ----------
+# Advisory only: for interdependent code (CAM) most files need module .mod files
+# from a gfortran build, so pass --moddir; unresolved files are skipped, not failed.
+if [ "$DO_FANALYZER" = 1 ]; then
+  FF=$(grep -E '^\+\+\+ b/.*\.([fF]|[fF]9[05]|[fF]0[38]|ftn|fpp)$' "$OUT/pr.diff" | sed 's|^+++ b/||')
+  if [ -z "$FF" ]; then
+    echo "  🔧 fanalyzer    : (no changed Fortran files)"
+  elif ! command -v gfortran >/dev/null 2>&1; then
+    echo "  🔧 fanalyzer    : ⚠️ gfortran not found (module load gcc)"
+  else
+    M=(); [ -n "$MODDIR" ] && M=(-m "$MODDIR")
+    ( cd "$REPO" && "${HPC_DEVSECOPS_HOME:-$HOME/hpc-devsecops}/tools/fanalyzer.sh" "${M[@]}" $FF ) > "$OUT/fanalyzer.txt" 2>&1
+    tail -1 "$OUT/fanalyzer.txt" | sed 's/^/  🔧 fanalyzer    : /'
+  fi
 fi
 
 # ---- verdict ----------------------------------------------------------------

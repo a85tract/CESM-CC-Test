@@ -42,8 +42,23 @@ Single static binaries in `~/bin` (no root needed):
 gitleaks version && syft version && grype version
 ```
 
-For the AI audit: `pip install anthropic` and `export ANTHROPIC_API_KEY=...`
-(the login node has outbound network; compute nodes usually do not).
+For the AI audit, create a venv with the SDK (the runner auto-detects and uses
+`~/hpc-devsecops/.venv`):
+
+```bash
+python3 -m venv ~/hpc-devsecops/.venv
+~/hpc-devsecops/.venv/bin/pip install anthropic
+```
+
+Put the API key in `~/.config/hpc-devsecops.env` (chmod 600) — the runner
+auto-sources it, so it works even from a `git push` hook:
+
+```bash
+echo 'export ANTHROPIC_API_KEY=sk-ant-...' > ~/.config/hpc-devsecops.env
+chmod 600 ~/.config/hpc-devsecops.env
+```
+
+The login node has outbound network for the API; compute nodes usually do not.
 
 One-time, so `grype` can run offline afterwards:
 
@@ -51,6 +66,17 @@ One-time, so `grype` can run offline afterwards:
 grype db update
 export GRYPE_DB_AUTO_UPDATE=false
 ```
+
+### Fortran static analysis (`--fanalyzer`) — HPC-plane caveat
+
+`tools/fanalyzer.sh` runs `gfortran -fanalyzer` on changed `.F90` files (opt in
+with `--fanalyzer`). But `-fanalyzer` needs a real compile, and Fortran `use`
+statements need the modules' `.mod` files — which for interdependent code like
+CAM means you must point it at a **gfortran** build's module dir
+(`--moddir DIR`; Intel/Cray `.mod` files are incompatible). Without that, files
+are reported as *skipped (unresolved modules)*, not failed. Real `-fanalyzer`
+coverage therefore belongs in a full gfortran build (a heavier nightly PBS job),
+not the fast pre-push gate — where the AI audit is the Fortran analyzer.
 
 ## Install
 

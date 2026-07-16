@@ -67,16 +67,36 @@ grype db update
 export GRYPE_DB_AUTO_UPDATE=false
 ```
 
-### Fortran static analysis (`--fanalyzer`) — HPC-plane caveat
+## Sanitizer plane — ifx + AddressSanitizer (heap OOB / UAF)
 
-`tools/fanalyzer.sh` runs `gfortran -fanalyzer` on changed `.F90` files (opt in
-with `--fanalyzer`). But `-fanalyzer` needs a real compile, and Fortran `use`
-statements need the modules' `.mod` files — which for interdependent code like
-CAM means you must point it at a **gfortran** build's module dir
-(`--moddir DIR`; Intel/Cray `.mod` files are incompatible). Without that, files
-are reported as *skipped (unresolved modules)*, not failed. Real `-fanalyzer`
-coverage therefore belongs in a full gfortran build (a heavier nightly PBS job),
-not the fast pre-push gate — where the AI audit is the Fortran analyzer.
+Runtime memory-safety analysis with the **native** Intel compiler. This is the
+heavy, on-demand/nightly counterpart to the fast pre-push gate (which uses the
+AI audit for Fortran). Verified on Derecho: `ifx 2025.2.1 -fsanitize=address`
+catches a Fortran heap-buffer-overflow with exact `file:line`.
+
+Confirm a reproducer / PoC:
+
+```bash
+module load intel-oneapi
+~/hpc-devsecops/tools/asan.sh mybug.F90            # or several sources, [-- args]
+# 🔴 ASan detected a problem:  heap-buffer-overflow ... mybug.F90:7
+```
+
+Run the whole model under ASan (heavy — build + run with instrumentation):
+
+```bash
+qsub ~/hpc-devsecops/hpc/asan-cam.pbs             # fill the TODOs for your case
+```
+
+`hpc/asan-cam.pbs` injects `-fsanitize=address` into FFLAGS/CFLAGS/**LDFLAGS**,
+builds a tiny CAM case, and runs it with MPI-aware `ASAN_OPTIONS`
+(`detect_leaks=0:halt_on_error=0`) — the CIME `create_newcase` bits are TODOs for
+your CAM version. Why not the fast gate? ASan is **dynamic** (must build + run
+CAM with inputs) and ~2–3× slower, so it lives here, not in `git push`.
+
+> `-fanalyzer` (GCC static analyzer) was evaluated and dropped: it is GCC-only
+> (ifx has no equivalent) and needs a non-native gfortran build with resolved
+> `.mod` files. `ifx + ASan` is the native, higher-signal choice for heap OOB.
 
 ## Install
 

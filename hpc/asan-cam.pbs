@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#PBS -N cam-asan
+#PBS -A PROJECT_CODE            # TODO: your Derecho project/account code
+#PBS -q main                    # TODO: main / develop / preempt as appropriate
+#PBS -l select=1:ncpus=8:mpiprocs=4:mem=64GB
+#PBS -l walltime=04:00:00       # ASan is ~2-3x slower + memory-hungry; keep the case SMALL
+#PBS -j oe
+#PBS -o cam-asan.log
+#
+# ==========================================================================
+# Sanitizer plane: build + run CAM under ifx + AddressSanitizer to catch heap
+# OOB / use-after-free at RUNTIME with exact file:line. This is the heavy,
+# on-demand/nightly counterpart to the fast pre-push gate (which uses the AI
+# audit for Fortran). Verified on Derecho: ifx 2025.2.1 -fsanitize=address
+# catches heap-buffer-overflow in Fortran.
+#
+# This is a TEMPLATE — fill the TODOs for your CAM case (compset/res/case dir).
+# CIME specifics vary by CAM version; the ASan-critical parts are filled in.
+# ==========================================================================
+set -uo pipefail
+
+module purge
+module load intel-oneapi        # provides ifx/icx + the ASan runtime
+module load ncarcompilers ncarenv 2>/dev/null || true
+# TODO: module load your netcdf/pnetcdf/mpi as your CAM build needs
+
+ASAN_FLAGS="-fsanitize=address -g -O1 -fno-omit-frame-pointer"
+OUT="$HOME/audits/hpc-devsecops/cam-asan/$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$OUT"
+
+# --- 1. Create a SMALL case (few timesteps, low res, few ranks) ------------
+# TODO: set these for your checkout.
+CIME_SCRIPTS="$HOME/cam_cesm2_1_rel/cime/scripts"   # or the CESM cime/scripts
+CASE="$SCRATCH/cam-asan-case"
+# "$CIME_SCRIPTS/create_newcase" --case "$CASE" --compset FKESSLER --res f45_f45_mg37 \
+#     --project PROJECT_CODE --run-unsupported
+
+cd "$CASE" || { echo "TODO: create the case first (see commented create_newcase)"; exit 1; }
+
+# --- 2. Inject ASan into ALL of FFLAGS / CFLAGS / LDFLAGS -------------------
+# The link step MUST also see -fsanitize=address, or you get undefined refs.
+./xmlchange --append FFLAGS="$ASAN_FLAGS"
+./xmlchange --append CFLAGS="$ASAN_FLAGS"
+./xmlchange --append LDFLAGS="$ASAN_FLAGS"
+# Keep the run tiny:
+./xmlchange STOP_OPTION=nsteps,STOP_N=2
+./xmlchange NTASKS=4,NTHRDS=1
+
+./case.setup
+./case.build 2>&1 | tee "$OUT/build.log"
+
+# --- 3. Run under ASan (MPI-aware options) ---------------------------------
+# detect_leaks=0: MPI/system-lib leaks are noise. halt_on_error=0: collect ALL
+# reports, not just the first. Route each rank's report to its own file.
+export ASAN_OPTIONS="detect_leaks=0:halt_on_error=0:abort_on_error=0:log_path=$OUT/asan:print_stats=0"
+./case.submit --no-batch 2>&1 | tee "$OUT/run.log"
+
+# --- 4. Collect findings ---------------------------------------------------
+echo "=== AddressSanitizer findings ===" | tee "$OUT/SUMMARY.txt"
+grep -hiE "AddressSanitizer:|SUMMARY:|heap-buffer-overflow|use-after-free|\.(F90|f90|c):[0-9]+" \
+  "$OUT"/asan.* "$OUT"/run.log 2>/dev/null | sort -u | tee -a "$OUT/SUMMARY.txt"
+echo "reports in: $OUT"

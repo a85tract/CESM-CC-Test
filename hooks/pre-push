@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#
+# hpc-devsecops pre-push hook.
+# Installed into <repo>/.git/hooks/pre-push by tools/install-hooks.sh.
+# Blocks the push if secrets / Critical CVEs / high AI findings are present.
+#
+# Bypass once (emergencies only):  git push --no-verify
+
+REPO="$(git rev-parse --show-toplevel)"
+RUNNER="${HPC_DEVSECOPS_HOME:-$HOME/hpc-devsecops}/tools/devsecops-local.sh"
+
+if [ ! -x "$RUNNER" ]; then
+  echo "hpc-devsecops: runner not found at $RUNNER — skipping (see README)" >&2
+  exit 0
+fi
+
+exec "$RUNNER" --vs-remote --block "$REPO"

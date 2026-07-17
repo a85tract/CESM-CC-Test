@@ -116,10 +116,9 @@ CAM with inputs) and ~2–3× slower, so it lives here, not in `git push`.
 ## Install
 
 ```bash
-# The org repo is named `devsecops`; the toolkit installs as `hpc-devsecops` by
-# convention, so all the default paths (venv, ~/.config/hpc-devsecops.env,
-# ~/audits/hpc-devsecops) resolve without extra config. Clone into that dir:
-git clone git@github.com:a85tract/devsecops.git ~/hpc-devsecops
+# Clone into ~/hpc-devsecops so all the default paths (venv,
+# ~/.config/hpc-devsecops.env, ~/audits/hpc-devsecops) resolve with no extra config.
+git clone git@github.com:a85tract/hpc-devsecops.git ~/hpc-devsecops
 # Cloned somewhere else? point the toolkit at it:
 #   export HPC_DEVSECOPS_HOME=/path/to/your/checkout
 ```

@@ -31,8 +31,8 @@ PR — lives in the target repo's `.github/`):
   red PRs, no burned Actions minutes.
 - 🕵️ **Private.** Findings stay on your box — useful for pre-disclosure security
   work.
-- 🔧 **Does what the cloud can't.** Hook in `gcc -fanalyzer` / sanitizers that need
-  the real HPC toolchain.
+- 🔧 **Does what the cloud can't.** Run native sanitizers (`ifx -fsanitize=address`)
+  that need the real HPC toolchain — see the sanitizer plane below.
 
 ## What it checks
 
@@ -179,5 +179,5 @@ and an issue is found (then `1`).
   SDK) — that is **not** the same as reviewed-clean.
 - Run the AI step on the login node (egress), or point the target repo's
   `ai_audit.py` at a local vLLM endpoint for a fully offline gate.
-- Same four static binaries run in CI and on HPC; the only HPC-specific step is
-  pre-staging the grype DB for offline use.
+- The same three static binaries (gitleaks, syft, grype) run in CI and on HPC;
+  the only HPC-specific step is pre-staging the grype DB for offline use.

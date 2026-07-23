@@ -133,9 +133,23 @@ if [ "$DO_AI" = 1 ] && [ -f "$AUDIT" ]; then
   else
     ( cd "$OUT" && "$PYBIN" "$AUDIT" "$OUT/pr.diff" >/dev/null 2>&1 )
     if [ -f "$OUT/ai-audit.sarif" ]; then
-      AI_HIGH=$(python3 -c "import json;print(sum(1 for r in json.load(open('$OUT/ai-audit.sarif'))['runs'][0]['results'] if r.get('level')=='error'))" 2>/dev/null || echo 0)
-      AI_STATE="reviewed"
-      echo "  🤖 ai-audit     : $AI_HIGH high finding(s)  (report: $OUT/ai-audit-report.md)"
+      # Only trust the audit if the SARIF marks the run successful. ai_audit.py
+      # writes the SARIF even on API/parse errors (empty results), so
+      # file-existence alone is a FALSE "reviewed" — a 401 would read as clean.
+      read -r AI_OK AI_HIGH < <(python3 -c "
+import json
+r=json.load(open('$OUT/ai-audit.sarif'))['runs'][0]
+ok=(r.get('invocations') or [{}])[0].get('executionSuccessful', True)
+high=sum(1 for x in r['results'] if x.get('level')=='error')
+print(int(bool(ok)), high)" 2>/dev/null || echo "0 0")
+      if [ "${AI_OK:-0}" = 1 ]; then
+        AI_STATE="reviewed"
+        echo "  🤖 ai-audit     : $AI_HIGH high finding(s)  (report: $OUT/ai-audit-report.md)"
+      else
+        AI_HIGH=0
+        AI_STATE="unreviewed"
+        echo "  🤖 ai-audit     : ⚠️ did NOT complete (bad key / API error) — UNREVIEWED (see $OUT/ai-audit-report.md)"
+      fi
     else
       echo "  🤖 ai-audit     : ⚠️ produced no output"
       AI_STATE="error"

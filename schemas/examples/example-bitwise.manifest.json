@@ -1,0 +1,142 @@
+{
+  "schema_version": "1.0",
+  "evidence_class": "reconstructed",
+
+  "artifact": {
+    "name": "PyCAM5",
+    "repo": "https://github.com/a85tract/PyCAM5",
+    "commit": "e8d68996e30499ea2027a87f7e5da81dae8ded29",
+    "version": "unreleased-e8d68996"
+  },
+
+  "reference": {
+    "model": "iCESM1.3.1_fzhu CAM",
+    "provenance": "pristine native baseline, no SourceMods"
+  },
+
+  "cc_test": {
+    "version": "unreleased-f964acd8",
+    "commit": "f964acd80d127061f6b4365d43e1bdc3ffb467ef"
+  },
+
+  "environment": {
+    "machine": "derecho"
+  },
+
+  "cases": [
+    {
+      "id": "pi-6month-allcodon",
+      "benchmark": "benchmarks/pycam5/pi-6month-allcodon.yaml",
+      "duration": "6 months",
+      "acceptance": {
+        "kind": "bitwise",
+        "rules": [
+          {
+            "check": "file_set_equal",
+            "scope": "*.cam.{h0,r,rh0,rs}.*.nc",
+            "gating": true
+          },
+          {
+            "check": "numeric_md5_equal",
+            "scope": "*.cam.{h0,r,rh0,rs}.*.nc",
+            "dump_format": "%+.17g",
+            "dump_tool": "ncks",
+            "gating": true
+          },
+          {
+            "check": "char_diff_count",
+            "expect": 0,
+            "gating": false,
+            "note": "character variables carry timestamps and case names; reported, not gated"
+          },
+          {
+            "check": "timing_delta_pct",
+            "timers": ["physpkg_st1", "bc_physics", "CPL:RUN_LOOP"],
+            "gating": false,
+            "note": "performance is reported alongside correctness and never gates it"
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          { "check": "file_set_equal", "gating": true, "passed": true },
+          { "check": "numeric_md5_equal", "gating": true, "passed": true,
+            "detail": "overall_numeric_equal=True" },
+          { "check": "char_diff_count", "gating": false, "passed": false,
+            "detail": "overall_char_equal=False" },
+          { "check": "timing_delta_pct", "gating": false, "passed": null,
+            "detail": "reported without a bound" }
+        ],
+        "files": [
+          {
+            "key": "h0.0001-01.nc",
+            "numeric_count": 0,
+            "numeric_equal": true,
+            "numeric_md5_reference": "00000000000000000000000000000000",
+            "numeric_md5_candidate": "00000000000000000000000000000000",
+            "char_count": 0,
+            "char_diff_count": 0,
+            "char_diff_vars": []
+          }
+        ],
+        "timing": {
+          "physpkg_st1": { "reference": 0.0, "candidate": 0.0, "delta_pct": 0.0 }
+        }
+      },
+      "outputs": {
+        "location": "/glade/derecho/scratch/<user>/<case>/run",
+        "retention": "unknown",
+        "files": []
+      }
+    },
+
+    {
+      "id": "mco-6month-allcodon",
+      "benchmark": "benchmarks/pycam5/mco-6month-allcodon.yaml",
+      "duration": "6 months",
+      "acceptance": {
+        "kind": "bitwise",
+        "rules": [
+          {
+            "check": "file_set_equal",
+            "scope": "*.cam.{h0,r,rh0,rs}.*.nc",
+            "gating": true
+          },
+          {
+            "check": "numeric_md5_equal",
+            "scope": "*.cam.{h0,r,rh0,rs}.*.nc",
+            "dump_format": "%+.17g",
+            "dump_tool": "ncks",
+            "gating": true
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          { "check": "file_set_equal", "gating": true, "passed": true },
+          { "check": "numeric_md5_equal", "gating": true, "passed": true,
+            "detail": "overall_numeric_equal=True" }
+        ],
+        "files": [],
+        "timing": {}
+      },
+      "outputs": {
+        "location": "/glade/derecho/scratch/<user>/<case>/run",
+        "retention": "unknown",
+        "files": []
+      }
+    }
+  ],
+
+  "security": {
+    "gate": "hpc-devsecops",
+    "status": "NOT_RUN"
+  },
+
+  "result": "PASS",
+  "timestamp": "2026-06-16T00:00:00Z",
+
+  "notes": "ILLUSTRATIVE FORMAT EXAMPLE - NOT EVIDENCE. Structure only. The commits, the reference model and the PASS verdict restate what PyCAM5/doc/internal_validation.md records for the 2026-06-16 PI and MCO 6-month all-Codon runs, but every digest here is a synthetic placeholder (all zeros), file lists are empty, and the compiler, MPI, Codon and reference revision were not captured at the time. evidence_class is 'reconstructed' for exactly that reason. The Cyber gate was never run against this commit, which is why security.status is NOT_RUN rather than absent. Do not copy this file into evidence/ and do not cite it as a validation result."
+}

@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/a85tract/CESM-CC-Test/main/schemas/acceptance.v1.json",
+  "title": "CC-Test acceptance criteria, version 1",
+  "description": "Vocabulary for declaring what a validation case must satisfy to be called PASS. Two families: 'bitwise' (Pipeline 1 - PyCAM5, freeCAM) is complete; 'statistical' (Pipeline 2 - jax-kernels, numba-kernels, pyphys-bridge) is provisional and must be finalised before any Pipeline 2 evidence is accepted. Every rule carries an explicit 'gating' flag: a check that is computed but does not gate must say so, so that the meaning of PASS is never implicit.",
+
+  "$defs": {
+
+    "acceptance": {
+      "description": "The acceptance block of one validation case.",
+      "oneOf": [
+        { "$ref": "#/$defs/bitwiseAcceptance" },
+        { "$ref": "#/$defs/statisticalAcceptance" }
+      ]
+    },
+
+    "bitwiseAcceptance": {
+      "type": "object",
+      "description": "Bit-for-bit agreement between a reference run and a candidate run.",
+      "properties": {
+        "kind": { "const": "bitwise" },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/bitwiseRule" },
+          "contains": {
+            "type": "object",
+            "properties": { "gating": { "const": true } },
+            "required": ["gating"]
+          },
+          "description": "At least one rule must be gating; an acceptance block in which nothing gates cannot produce a meaningful PASS."
+        }
+      },
+      "required": ["kind", "rules"],
+      "additionalProperties": false
+    },
+
+    "bitwiseRule": {
+      "description": "One bitwise check. The 'check' value selects the rule shape.",
+      "oneOf": [
+        { "$ref": "#/$defs/ruleFileSetEqual" },
+        { "$ref": "#/$defs/ruleNumericMd5Equal" },
+        { "$ref": "#/$defs/ruleCharDiffCount" },
+        { "$ref": "#/$defs/ruleTimingDeltaPct" }
+      ]
+    },
+
+    "ruleFileSetEqual": {
+      "type": "object",
+      "description": "The reference and candidate run directories must expose the same set of output files. A mismatch is an ERROR, not a FAIL: nothing was compared.",
+      "properties": {
+        "check": { "const": "file_set_equal" },
+        "scope": {
+          "type": "string",
+          "description": "Glob describing which outputs are in scope, e.g. '*.cam.{h0,r,rh0,rs}.*.nc'."
+        },
+        "gating": { "const": true },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "scope", "gating"],
+      "additionalProperties": false
+    },
+
+    "ruleNumericMd5Equal": {
+      "type": "object",
+      "description": "Per output file, the md5 of a fixed-format text dump of all numeric variables must be identical between reference and candidate. Note this is one digest per file over the concatenated variable dump, not one digest per variable.",
+      "properties": {
+        "check": { "const": "numeric_md5_equal" },
+        "scope": {
+          "type": "string",
+          "description": "Glob describing which output files this rule covers."
+        },
+        "dump_format": {
+          "type": "string",
+          "default": "%+.17g",
+          "description": "Format string passed to 'ncks -s'. The digest is only comparable between manifests that used the same format, so it is recorded rather than assumed."
+        },
+        "dump_tool": {
+          "type": "string",
+          "default": "ncks",
+          "description": "Tool that produced the dump. Recorded for the same reason as dump_format."
+        },
+        "gating": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "scope", "dump_format", "gating"],
+      "additionalProperties": false
+    },
+
+    "ruleCharDiffCount": {
+      "type": "object",
+      "description": "Number of character variables whose per-variable dump digest differs. Character variables in CAM output routinely carry timestamps and case names, so this is normally reported without gating.",
+      "properties": {
+        "check": { "const": "char_diff_count" },
+        "scope": { "type": "string" },
+        "expect": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Expected number of differing character variables."
+        },
+        "gating": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "expect", "gating"],
+      "additionalProperties": false
+    },
+
+    "ruleTimingDeltaPct": {
+      "type": "object",
+      "description": "Relative wall-clock change per GPTL timer, as (candidate / reference - 1) * 100. Performance is reported alongside correctness but must not gate a correctness verdict unless a benchmark explicitly says otherwise.",
+      "properties": {
+        "check": { "const": "timing_delta_pct" },
+        "timers": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "GPTL timer names, e.g. physpkg_st1, bc_physics, CPL:RUN_LOOP."
+        },
+        "max_abs_pct": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Optional bound on |delta_pct|. Only meaningful when gating is true."
+        },
+        "gating": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "timers", "gating"],
+      "additionalProperties": false,
+      "if": { "properties": { "gating": { "const": true } }, "required": ["gating"] },
+      "then": { "required": ["max_abs_pct"] }
+    },
+
+    "statisticalAcceptance": {
+      "type": "object",
+      "description": "PROVISIONAL - pending decision D4 in docs/VALIDATION-ARCHITECTURE.md. Agreement within a stated tolerance or within ensemble spread, for cases where bit-for-bit reproduction is not the goal. The rule shapes below are placeholders derived from the Pipeline 2 dashboard figures (Held-Suarez 1.24e-6 relative difference; TJ2016 7.52e-3 within ensemble spread). Tolerance semantics, the norm, the compared variable set, and the spread test are NOT yet agreed. verify_evidence.py must reject 'statistical' acceptance until this block is marked final.",
+      "properties": {
+        "kind": { "const": "statistical" },
+        "status": {
+          "const": "provisional",
+          "description": "Must read 'provisional' while D4 is open. Removing this field is the signal that the vocabulary has been agreed."
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/statisticalRule" },
+          "contains": {
+            "type": "object",
+            "properties": { "gating": { "const": true } },
+            "required": ["gating"]
+          }
+        }
+      },
+      "required": ["kind", "status", "rules"],
+      "additionalProperties": false
+    },
+
+    "statisticalRule": {
+      "oneOf": [
+        { "$ref": "#/$defs/ruleRelativeDiffMax" },
+        { "$ref": "#/$defs/ruleWithinEnsembleSpread" }
+      ]
+    },
+
+    "ruleRelativeDiffMax": {
+      "type": "object",
+      "description": "PROVISIONAL. Bound on the relative difference between reference and candidate fields.",
+      "properties": {
+        "check": { "const": "relative_diff_max" },
+        "variables": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "OPEN (D4): the compared variable set is not yet defined."
+        },
+        "norm": {
+          "enum": ["l2", "linf", "rmse"],
+          "description": "OPEN (D4): which norm the tolerance applies to."
+        },
+        "tolerance": { "type": "number", "exclusiveMinimum": 0 },
+        "gating": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "variables", "norm", "tolerance", "gating"],
+      "additionalProperties": false
+    },
+
+    "ruleWithinEnsembleSpread": {
+      "type": "object",
+      "description": "PROVISIONAL. The candidate must fall within the spread of a reference ensemble.",
+      "properties": {
+        "check": { "const": "within_ensemble_spread" },
+        "variables": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "members": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "OPEN (D4): required ensemble size is not yet agreed."
+        },
+        "spread_metric": {
+          "enum": ["stddev", "minmax", "iqr"],
+          "description": "OPEN (D4): which spread definition counts as 'within'."
+        },
+        "spread_multiplier": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1.0,
+          "description": "OPEN (D4): e.g. 2.0 for a two-sigma band."
+        },
+        "gating": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "variables", "members", "spread_metric", "gating"],
+      "additionalProperties": false
+    }
+  }
+}

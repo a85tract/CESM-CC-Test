@@ -8,6 +8,11 @@ secrets) while they are still on your login node, not after they reach GitHub.
 Built for scientific codebases on HPC (rootless install, no Docker, works
 offline), but it is generic — point it at any git repo.
 
+This repository is also **CC-Test** (Correctness and Cyber Test), the validation
+hub for the CESM/CAM modernization effort. The DevSecOps gate documented here is
+its Cyber half and is usable standalone; the Correctness half is being built
+alongside it — see [Repository layout](#repository-layout).
+
 ## Status
 
 Verified on Derecho (NCAR) as the local + sanitizer half of a three-plane
@@ -152,7 +157,12 @@ git clone git@github.com:a85tract/hpc-devsecops.git ~/hpc-devsecops
 | `--vs-remote` | audit commits not yet pushed (default when the branch has an upstream) |
 | `--base REF` | base ref for `--vs-remote` (default: the branch upstream) |
 | `--block` | exit non-zero on any secret / Critical CVE / high AI finding |
+| `--require-complete` | exit non-zero if any check did not actually run |
 | `--no-ai` | skip the AI code audit |
+
+`--block` and `--require-complete` answer different questions: the first is
+"did we find anything?", the second is "did we look?". A gate can pass the
+first and fail the second.
 
 `--vs-remote` (new commits only) is the quietest mode — it won't re-flag
 pre-existing findings. `--worktree` scans everything and is the noisiest.
@@ -185,8 +195,37 @@ Nothing is written under `/glade/work`. Exit code is `0` unless `--block` is set
 and an issue is found, or `--require-complete` is set and a check did not run
 (then `1`).
 
+## Repository layout
+
+```
+tools/       devsecops-local.sh, asan.sh, install-hooks.sh, install-config.sh,
+             test-ai-audit.py
+hooks/       pre-push
+hpc/         asan-cam.pbs
+templates/   .gitleaks.toml, .vex/openvex.json, .github/scripts/ai_audit.py
+             — the config a target repo needs; installed by install-config.sh
+schemas/     evidence-manifest.v1.json, acceptance.v1.json + self-test
+docs/        VALIDATION-ARCHITECTURE.md
+```
+
+Everything above `schemas/` is the **Cyber** half and works today. `schemas/` and
+`docs/` are the start of the **Correctness** half: they define what a validation
+evidence package is and how it gets produced and checked. The tooling that
+produces one — the run comparator, manifest builder, and verifier — is not
+written yet; `docs/VALIDATION-ARCHITECTURE.md` has the plan, the open decisions,
+and what each step depends on.
+
+The two halves meet in the evidence manifest: its `security` block records the
+Cyber gate's verdict for the same commit the correctness run validated, so one
+package answers both "does this code compute the right answer" and "was it
+scanned". `summary.json` from the gate is that block's input.
+
 ## Notes
 
+- An `⚠️ INCOMPLETE` verdict means no blocking findings were reported *and* at
+  least one check never ran. It is not a pass. The per-scan states in
+  `summary.json` say which one, and `--require-complete` turns it into a
+  non-zero exit.
 - A `⚠️ UNREVIEWED` note means the AI audit did not actually run (missing key or
   SDK) — that is **not** the same as reviewed-clean.
 - Run the AI step on the login node (egress), or point the target repo's

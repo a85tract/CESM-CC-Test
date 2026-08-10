@@ -43,10 +43,17 @@ repo's own* configuration, so local and cloud never drift.
 |---|---|---|
 | 🔑 Secret scan | `gitleaks` | `.gitleaks.toml` |
 | 📦 SBOM + CVE + VEX | `syft` → `grype` | `.vex/openvex.json` |
-| 🤖 AI code audit | your `ai_audit.py` (Claude) | `.github/scripts/ai_audit.py` |
+| 🤖 AI code audit | `ai_audit.py` (Claude) | `.github/scripts/ai_audit.py` |
 
-If a config or tool is missing, that check is skipped with a warning — never a
-hard error.
+Install all three into a target repo with `tools/install-config.sh <repo>` —
+`templates/` holds the versions to start from, including a working `ai_audit.py`.
+Commit them in the target repo so CI reads the same config the local gate does.
+
+If a config or tool is missing, that check is skipped with a warning rather than
+a hard error — but the gate reports **`INCOMPLETE`**, never `clean`, when any
+check did not actually run. A finding count of zero from a scan that never
+happened is not a clean result. Pass `--require-complete` to exit non-zero on an
+incomplete gate; `--block` still gates on findings only.
 
 ## Requirements
 
@@ -166,11 +173,17 @@ Reports are written under `~/audits/hpc-devsecops/<repo>/<timestamp>/`:
 
 ```
 pr.diff            gitleaks.sarif     grype.json     sbom.spdx.json
-ai-audit.sarif     ai-audit-report.md summary.txt
+ai-audit.sarif     ai-audit-report.md summary.txt    summary.json
 ```
 
+`summary.json` is the machine-readable twin of `summary.txt`. It carries the
+per-scan state alongside each count, so a consumer can tell "scanned, found
+nothing" from "never ran" — `correctness/make_manifest.py` reads it to fill the
+`security` block of an evidence manifest (see `docs/VALIDATION-ARCHITECTURE.md`).
+
 Nothing is written under `/glade/work`. Exit code is `0` unless `--block` is set
-and an issue is found (then `1`).
+and an issue is found, or `--require-complete` is set and a check did not run
+(then `1`).
 
 ## Notes
 

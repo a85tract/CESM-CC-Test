@@ -8,6 +8,11 @@ secrets) while they are still on your login node, not after they reach GitHub.
 Built for scientific codebases on HPC (rootless install, no Docker, works
 offline), but it is generic — point it at any git repo.
 
+This repository is also **CC-Test** (Correctness and Cyber Test), the validation
+hub for the CESM/CAM modernization effort. The DevSecOps gate documented here is
+its Cyber half and is usable standalone; the Correctness half is being built
+alongside it — see [Repository layout](#repository-layout).
+
 ## Status
 
 Verified on Derecho (NCAR) as the local + sanitizer half of a three-plane
@@ -171,6 +176,27 @@ ai-audit.sarif     ai-audit-report.md summary.txt
 
 Nothing is written under `/glade/work`. Exit code is `0` unless `--block` is set
 and an issue is found (then `1`).
+
+## Repository layout
+
+```
+tools/  hooks/  hpc/     the Cyber half — the DevSecOps gate documented above
+
+schemas/                 what a validation evidence package is (JSON Schema + self-test)
+correctness/             the four tools that produce and check one — all stubs today
+benchmarks/              per-product case definitions and acceptance criteria
+evidence/                the append-only index of validated versions
+docs/                    VALIDATION-ARCHITECTURE.md — the plan and open decisions
+```
+
+The **Cyber** half works today. The **Correctness** half is scaffolded: the schema
+and directory structure are in place, and each module under `correctness/` states
+its inputs, outputs, and invariants, then raises `NotImplementedError`. Nothing
+returns a plausible-looking empty result — an evidence package must never record
+a pass for a comparison that did not happen.
+
+`docs/VALIDATION-ARCHITECTURE.md` has the migration order, who owns what, and the
+decisions still open.
 
 ## Notes
 

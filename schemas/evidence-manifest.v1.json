@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/a85tract/CESM-CC-Test/main/schemas/evidence-manifest.v1.json",
+  "title": "CC-Test evidence manifest, version 1",
+  "description": "One evidence package: what was validated, against what reference, on which machine, under which acceptance criteria, and with what result. The manifest is the durable record. Raw model output lives on HPC storage and is expected to be purged; the manifest keeps its fingerprint, so a later re-run can still be compared against it. Cross-field invariants that JSON Schema cannot express are listed in schemas/README.md and enforced by correctness/verify_evidence.py.",
+  "type": "object",
+
+  "properties": {
+    "schema_version": { "const": "1.0" },
+
+    "evidence_class": {
+      "enum": ["complete", "reconstructed"],
+      "default": "complete",
+      "description": "'complete': every provenance field was captured at validation time. 'reconstructed': assembled after the fact from surviving notes, so some provenance is missing. A reconstructed manifest is a format example, not a compliance example, and verify_evidence.py flags it as such."
+    },
+
+    "artifact": {
+      "type": "object",
+      "description": "The thing being validated.",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "repo": { "type": "string", "format": "uri" },
+        "commit": { "$ref": "#/$defs/commit" },
+        "version": { "$ref": "#/$defs/version" }
+      },
+      "required": ["name", "repo", "commit", "version"],
+      "additionalProperties": false
+    },
+
+    "reference": {
+      "type": "object",
+      "description": "The baseline the artifact is compared against.",
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable identity of the baseline, e.g. 'iCESM1.3.1_fzhu CAM'."
+        },
+        "commit_or_tag": { "type": "string", "minLength": 1 },
+        "provenance": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How the baseline was produced, e.g. 'pristine native baseline, no SourceMods'."
+        }
+      },
+      "required": ["model", "provenance"],
+      "additionalProperties": false
+    },
+
+    "cc_test": {
+      "type": "object",
+      "description": "The version of this repository that produced the comparison. Pins the comparator behaviour.",
+      "properties": {
+        "version": { "$ref": "#/$defs/version" },
+        "commit": { "$ref": "#/$defs/commit" }
+      },
+      "required": ["version", "commit"],
+      "additionalProperties": false
+    },
+
+    "environment": {
+      "type": "object",
+      "description": "Where and with what the runs were produced. Structured rather than free text so two manifests can be diffed.",
+      "properties": {
+        "machine": { "type": "string", "minLength": 1 },
+        "compiler": { "type": "string", "minLength": 1 },
+        "mpi": { "type": "string" },
+        "python": { "type": "string" },
+        "codon": { "type": "string" },
+        "cuda": { "type": "string" },
+        "jax": { "type": "string" },
+        "numba": { "type": "string" },
+        "modules": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["machine"],
+      "additionalProperties": { "type": "string" }
+    },
+
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/case" }
+    },
+
+    "result": {
+      "$ref": "#/$defs/status",
+      "description": "Rolled up from cases[].result.status: ERROR if any case errored, else FAIL if any case failed, else PASS. Correctness only — see decision D6 for the proposal to record the Cyber gate's verdict alongside it."
+    },
+
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the validation was performed, not when the manifest was written."
+    },
+
+    "operator": { "type": "string" },
+    "notes": { "type": "string" }
+  },
+
+  "required": [
+    "schema_version",
+    "artifact",
+    "reference",
+    "cc_test",
+    "environment",
+    "cases",
+    "result",
+    "timestamp"
+  ],
+  "additionalProperties": false,
+
+  "allOf": [
+    {
+      "description": "A complete manifest must pin the reference revision and the compiler. A reconstructed one may not be able to.",
+      "if": {
+        "properties": { "evidence_class": { "const": "complete" } }
+      },
+      "then": {
+        "properties": {
+          "reference": { "required": ["model", "commit_or_tag", "provenance"] },
+          "environment": { "required": ["machine", "compiler"] }
+        }
+      }
+    }
+  ],
+
+  "$defs": {
+
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$",
+      "description": "Full or abbreviated git SHA, lowercase hex."
+    },
+
+    "version": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.]+)?$",
+          "description": "A release tag."
+        },
+        {
+          "type": "string",
+          "pattern": "^unreleased-[0-9a-f]{8}$",
+          "description": "Bridge form for repositories that have not cut a tag yet (decision D2). The commit field remains authoritative."
+        }
+      ]
+    },
+
+    "md5": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "Null when the file has no variables of that class."
+    },
+
+    "status": { "enum": ["PASS", "FAIL", "ERROR"] },
+
+    "case": {
+      "type": "object",
+      "description": "One validated configuration. A validation normally covers several, e.g. PI and MCO.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "Stable identifier, matching the benchmark file stem."
+        },
+        "benchmark": {
+          "type": "string",
+          "pattern": "^benchmarks/",
+          "description": "Repository-relative path to the benchmark definition that specifies this case."
+        },
+        "compset": { "type": "string" },
+        "resolution": { "type": "string" },
+        "duration": { "type": "string" },
+        "ranks": { "type": "integer", "minimum": 1 },
+        "acceptance": {
+          "$ref": "https://raw.githubusercontent.com/a85tract/CESM-CC-Test/main/schemas/acceptance.v1.json#/$defs/acceptance"
+        },
+        "result": { "$ref": "#/$defs/caseResult" },
+        "outputs": { "$ref": "#/$defs/outputs" }
+      },
+      "required": ["id", "benchmark", "acceptance", "result", "outputs"],
+      "additionalProperties": false
+    },
+
+    "caseResult": {
+      "type": "object",
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/checkResult" },
+          "description": "One entry per rule in acceptance.rules, same order. verify_evidence.py enforces the correspondence."
+        },
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fileComparison" },
+          "description": "Per output file detail, as emitted by the comparator. Empty is allowed for acceptance kinds that do not compare files."
+        },
+        "timing": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/timerComparison" },
+          "description": "Keyed by GPTL timer name."
+        },
+        "error": {
+          "type": "string",
+          "description": "Why the comparison could not be carried out. Required when status is ERROR."
+        }
+      },
+      "required": ["status", "checks"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "ERROR" } }, "required": ["status"] },
+          "then": { "required": ["error"] }
+        }
+      ]
+    },
+
+    "checkResult": {
+      "type": "object",
+      "description": "Outcome of one acceptance rule.",
+      "properties": {
+        "check": { "type": "string", "minLength": 1 },
+        "gating": { "type": "boolean" },
+        "passed": {
+          "type": ["boolean", "null"],
+          "description": "Null only for a non-gating check that has no pass/fail notion, such as an unbounded timing report."
+        },
+        "detail": { "type": "string" }
+      },
+      "required": ["check", "gating", "passed"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "description": "A gating check must reach a verdict.",
+          "if": { "properties": { "gating": { "const": true } }, "required": ["gating"] },
+          "then": { "properties": { "passed": { "type": "boolean" } } }
+        }
+      ]
+    },
+
+    "fileComparison": {
+      "type": "object",
+      "description": "Mirrors the comparator's per-file output. The numeric digest covers all numeric variables of the file in one dump, so it is one digest per file; character variables are digested individually and only the differing count and names are kept.",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Output identity with the case name stripped, e.g. 'h0.0001-01.nc'."
+        },
+        "numeric_count": { "type": "integer", "minimum": 0 },
+        "numeric_equal": { "type": "boolean" },
+        "numeric_md5_reference": { "$ref": "#/$defs/md5" },
+        "numeric_md5_candidate": { "$ref": "#/$defs/md5" },
+        "char_count": { "type": "integer", "minimum": 0 },
+        "char_diff_count": { "type": "integer", "minimum": 0 },
+        "char_diff_vars": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": [
+        "key",
+        "numeric_count",
+        "numeric_equal",
+        "numeric_md5_reference",
+        "numeric_md5_candidate",
+        "char_count",
+        "char_diff_count"
+      ],
+      "additionalProperties": false
+    },
+
+    "timerComparison": {
+      "type": "object",
+      "properties": {
+        "reference": { "type": "number" },
+        "candidate": { "type": "number" },
+        "delta_pct": {
+          "type": "number",
+          "description": "(candidate / reference - 1) * 100."
+        }
+      },
+      "required": ["reference", "candidate", "delta_pct"],
+      "additionalProperties": false
+    },
+
+    "outputs": {
+      "type": "object",
+      "description": "Where the compared output lives and how long it will survive. Raw NetCDF is never committed; the fingerprints below are what remains after the data is purged.",
+      "properties": {
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Absolute path on HPC storage, e.g. '/glade/derecho/scratch/<user>/<case>/run'."
+        },
+        "retention": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Retention class and expected purge date, e.g. 'scratch, purged ~2026-12-01'. State 'unknown' rather than omitting it."
+        },
+        "assets_release": {
+          "type": "string",
+          "description": "Tag of the CC-Test release holding the tier 1 assets (plots, diff tables, run and PBS logs) for this package. Absent when no assets were uploaded."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "md5": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+              "bytes": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["name", "md5", "bytes"],
+            "additionalProperties": false
+          },
+          "description": "Whole-file digests of the candidate output. May be empty if the data was already purged when the manifest was assembled; verify_evidence.py warns in that case."
+        }
+      },
+      "required": ["location", "retention", "files"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #PBS -N cam-asan
-#PBS -A PROJECT_CODE            # TODO: your Derecho project/account code
+# Supply the account at submission time: qsub -A <account> -v PROJECT=<account>,CESM_ROOT=<path> ...
 #PBS -q main                    # TODO: main / develop / preempt as appropriate
 #PBS -l select=1:ncpus=8:mpiprocs=4:mem=64GB
 #PBS -l walltime=04:00:00       # ASan is ~2-3x slower + memory-hungry; keep the case SMALL
@@ -19,10 +19,16 @@
 # ==========================================================================
 set -uo pipefail
 
+: "${PROJECT:?submit with qsub -v PROJECT=<account>,CESM_ROOT=<path> hpc/asan-cam.pbs}"
+: "${CESM_ROOT:?submit with qsub -v PROJECT=<account>,CESM_ROOT=<path> hpc/asan-cam.pbs}"
+: "${SCRATCH:?SCRATCH is not set}"
+: "${PBS_JOBID:?PBS_JOBID is not set}"
+
 module purge
 module load intel-oneapi        # provides ifx/icx + the ASan runtime
 module load ncarcompilers ncarenv 2>/dev/null || true
 # TODO: module load your netcdf/pnetcdf/mpi as your CAM build needs
+command -v ifx >/dev/null 2>&1 || { echo "ifx unavailable after module setup" >&2; exit 2; }
 
 ASAN_FLAGS="-fsanitize=address -g -O1 -fno-omit-frame-pointer"
 OUT="$HOME/audits/hpc-devsecops/cam-asan/$(date -u +%Y%m%dT%H%M%SZ)"
@@ -36,10 +42,11 @@ mkdir -p "$OUT"
 # --- 1. Create a SMALL case: FKESSLER = idealized aquaplanet (analytic ICs,
 #        ~no input data), coarse f45 grid, 4 ranks, 2 steps. Escalate later to
 #        QPC6 / F2000climo to exercise the NetCDF-dimension read -> alloc paths.
-CIME_SCRIPTS="$HOME/cam_cesm2_1_rel/cime/scripts"
+CIME_SCRIPTS="$CESM_ROOT/cime/scripts"
 CASE="$SCRATCH/cam-asan-case.$PBS_JOBID"
+test -x "$CIME_SCRIPTS/create_newcase" || { echo "missing create_newcase: $CIME_SCRIPTS/create_newcase" >&2; exit 2; }
 "$CIME_SCRIPTS/create_newcase" --case "$CASE" --compset FKESSLER --res f45_f45_mg37 \
-    --project "$PBS_ACCOUNT" --run-unsupported
+    --project "$PROJECT" --run-unsupported || exit 2
 
 cd "$CASE" || { echo "create_newcase failed — did you run checkout_externals?"; exit 1; }
 
@@ -52,17 +59,26 @@ cd "$CASE" || { echo "create_newcase failed — did you run checkout_externals?"
 ./xmlchange STOP_OPTION=nsteps,STOP_N=2
 ./xmlchange NTASKS=4,NTHRDS=1
 
-./case.setup
+./case.setup || exit 2
 ./case.build 2>&1 | tee "$OUT/build.log"
+build_rc=${PIPESTATUS[0]}
+[ "$build_rc" -eq 0 ] || { echo "case.build failed: $build_rc" >&2; exit 2; }
 
 # --- 3. Run under ASan (MPI-aware options) ---------------------------------
 # detect_leaks=0: MPI/system-lib leaks are noise. halt_on_error=0: collect ALL
 # reports, not just the first. Route each rank's report to its own file.
 export ASAN_OPTIONS="detect_leaks=0:halt_on_error=0:abort_on_error=0:log_path=$OUT/asan:print_stats=0"
 ./case.submit --no-batch 2>&1 | tee "$OUT/run.log"
+run_rc=${PIPESTATUS[0]}
 
 # --- 4. Collect findings ---------------------------------------------------
 echo "=== AddressSanitizer findings ===" | tee "$OUT/SUMMARY.txt"
 grep -hiE "AddressSanitizer:|SUMMARY:|heap-buffer-overflow|use-after-free|\.(F90|f90|c):[0-9]+" \
-  "$OUT"/asan.* "$OUT"/run.log 2>/dev/null | sort -u | tee -a "$OUT/SUMMARY.txt"
+  "$OUT"/asan.* "$OUT"/run.log 2>/dev/null | sort -u | tee -a "$OUT/SUMMARY.txt" || true
 echo "reports in: $OUT"
+
+if grep -qiE "AddressSanitizer:|SUMMARY:|heap-buffer-overflow|use-after-free|runtime error:" "$OUT"/asan.* "$OUT"/run.log 2>/dev/null; then
+  echo "ASan finding detected" >&2
+  exit 1
+fi
+[ "$run_rc" -eq 0 ] || { echo "case.submit failed: $run_rc" >&2; exit 2; }

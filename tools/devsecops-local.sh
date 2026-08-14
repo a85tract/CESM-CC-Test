@@ -1,185 +1,212 @@
 #!/usr/bin/env bash
-#
 # hpc-devsecops — local DevSecOps gate for HPC.
 #
-# Runs the same checks as the cloud pipeline (secret scan, SBOM+CVE+VEX, AI code
-# audit) against a target repo on your machine, BEFORE you push. It reuses the
-# TARGET repo's own config (.gitleaks.toml, .vex/openvex.json,
-# .github/scripts/ai_audit.py) so local and cloud never drift.
-#
-# Usage:
-#   devsecops-local.sh [OPTIONS] [TARGET_REPO]
-#
-# Options:
-#   --staged       audit staged changes (git diff --cached)
-#   --worktree     audit all uncommitted changes (git diff HEAD)
-#   --vs-remote    audit commits not yet on the remote (default if upstream set)
-#   --base REF     base ref for --vs-remote (default: the branch upstream)
-#   --block        exit non-zero if any secret / Critical CVE / high AI finding
-#   --no-ai        skip the AI code audit
-#   -h, --help     this help
-#
-# TARGET_REPO defaults to the current directory. Reports are written under
-# ~/audits/hpc-devsecops/<repo>/<timestamp>/ (never under /glade/work).
+# Usage: devsecops-local.sh [OPTIONS] [TARGET_REPO]
+#   --staged       audit the staged patch
+#   --worktree     audit tracked worktree changes
+#   --vs-remote    audit BASE..HEAD (default when an upstream exists)
+#   --base REF     base ref for --vs-remote
+#   --range RANGE  audit an explicit Git revision range (used by pre-push)
+#   --block        fail on findings and fail closed on scanner errors
+#   --no-ai        explicitly disable the optional AI audit
+#   -h, --help     show this help
 
 set -uo pipefail
 
-# ---- args -------------------------------------------------------------------
-MODE=""            # staged | worktree | vs-remote
+usage() {
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+die() { echo "hpc-devsecops: $*" >&2; exit 2; }
+
+MODE=""
 BASE=""
+RANGE=""
 BLOCK=0
 DO_AI=1
 REPO=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --staged)    MODE="staged" ;;
-    --worktree)  MODE="worktree" ;;
-    --vs-remote) MODE="vs-remote" ;;
-    --base)      BASE="$2"; shift ;;
-    --block)     BLOCK=1 ;;
-    --no-ai)     DO_AI=0 ;;
-    -h|--help)   sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    -*)          echo "unknown option: $1" >&2; exit 2 ;;
-    *)           REPO="$1" ;;
+    --staged|--worktree|--vs-remote)
+      [ -z "$MODE" ] || die "choose only one audit mode"
+      MODE="${1#--}"
+      ;;
+    --base)
+      [ $# -ge 2 ] || die "--base requires a ref"
+      BASE="$2"; shift
+      ;;
+    --range)
+      [ $# -ge 2 ] || die "--range requires a Git revision range"
+      [ -z "$MODE" ] || die "--range cannot be combined with another audit mode"
+      MODE="range"; RANGE="$2"; shift
+      ;;
+    --block) BLOCK=1 ;;
+    --no-ai) DO_AI=0 ;;
+    -h|--help) usage; exit 0 ;;
+    -*) die "unknown option: $1" ;;
+    *) [ -z "$REPO" ] || die "only one target repo may be supplied"; REPO="$1" ;;
   esac
   shift
 done
 
 REPO="${REPO:-$PWD}"
-REPO="$(cd "$REPO" && pwd)" || { echo "no such repo: $REPO" >&2; exit 2; }
-git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || { echo "not a git repo: $REPO" >&2; exit 2; }
+REPO="$(cd "$REPO" 2>/dev/null && pwd)" || die "no such repo: $REPO"
+git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || die "not a git repo: $REPO"
 
-# Default mode: vs-remote if an upstream exists, else worktree.
 if [ -z "$MODE" ]; then
-  if git -C "$REPO" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then MODE="vs-remote"; else MODE="worktree"; fi
+  if git -C "$REPO" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+    MODE="vs-remote"
+  else
+    MODE="worktree"
+  fi
 fi
 if [ "$MODE" = "vs-remote" ] && [ -z "$BASE" ]; then
   BASE="$(git -C "$REPO" rev-parse --abbrev-ref '@{u}' 2>/dev/null)"
-  [ -z "$BASE" ] && { echo "no upstream; use --base REF or --worktree" >&2; exit 2; }
+  [ -n "$BASE" ] || die "no upstream; use --base REF, --range RANGE, or --worktree"
 fi
+[ -z "$BASE" ] || git -C "$REPO" rev-parse --verify "$BASE^{commit}" >/dev/null 2>&1 || die "invalid base ref: $BASE"
+[ -z "$RANGE" ] || git -C "$REPO" rev-list "$RANGE" --max-count=1 >/dev/null 2>&1 || die "invalid revision range: $RANGE"
 
 REPO_NAME="$(basename "$REPO")"
-TS="$(date -u +%Y%m%dT%H%M%SZ)"
-OUT="$HOME/audits/hpc-devsecops/$REPO_NAME/$TS"
-mkdir -p "$OUT"
+TS="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+OUT_ROOT="${HPC_DEVSECOPS_AUDIT_ROOT:-$HOME/audits/hpc-devsecops}"
+OUT="$OUT_ROOT/$REPO_NAME/$TS"
+mkdir -p "$OUT" || die "cannot create report directory: $OUT"
 
-echo "hpc-devsecops ▸ repo=$REPO  mode=$MODE${BASE:+ base=$BASE}"
+case "$MODE" in
+  staged)     git -C "$REPO" diff --cached --binary > "$OUT/pr.diff" || die "cannot create staged diff" ;;
+  worktree)   git -C "$REPO" diff HEAD --binary > "$OUT/pr.diff" || die "cannot create worktree diff" ;;
+  vs-remote)  git -C "$REPO" diff "$BASE..HEAD" --binary > "$OUT/pr.diff" || die "cannot diff $BASE..HEAD" ;;
+  range)      git -C "$REPO" diff "$RANGE" --binary > "$OUT/pr.diff" || die "cannot diff $RANGE" ;;
+  *) die "internal error: unsupported mode $MODE" ;;
+esac
+
+DIFF_LINES="$(wc -l < "$OUT/pr.diff")"
+echo "hpc-devsecops ▸ repo=$REPO mode=$MODE${BASE:+ base=$BASE}${RANGE:+ range=$RANGE}"
 echo "          reports → $OUT"
 echo
 
-# ---- compute the diff -------------------------------------------------------
-case "$MODE" in
-  staged)    git -C "$REPO" diff --cached           > "$OUT/pr.diff" ;;
-  worktree)  git -C "$REPO" diff HEAD               > "$OUT/pr.diff" ;;
-  vs-remote) git -C "$REPO" diff "${BASE}...HEAD"    > "$OUT/pr.diff" ;;
-esac
-DIFF_LINES=$(wc -l < "$OUT/pr.diff")
+SECRETS=0; CVE_CRIT=0; CVE_HIGH=0; AI_HIGH=0
+GL_STATE="unavailable"; CVE_STATE="unavailable"; AI_STATE="skipped"
 
-SECRETS=0; CVE_CRIT=0; CVE_HIGH=0; AI_HIGH=0; AI_STATE="skipped"
-
-# ---- 1. secret scan (gitleaks) ---------------------------------------------
+# Secret scanning is range-aware. Patch modes scan the exact patch through stdin.
 if command -v gitleaks >/dev/null 2>&1; then
   GL_CFG=(); [ -f "$REPO/.gitleaks.toml" ] && GL_CFG=(--config "$REPO/.gitleaks.toml")
-  if [ "$MODE" = "vs-remote" ]; then
-    gitleaks git "$REPO" "${GL_CFG[@]}" --log-opts="${BASE}..HEAD" \
-      --report-format sarif --report-path "$OUT/gitleaks.sarif" --exit-code 0 >/dev/null 2>&1
+  if [ "$MODE" = "vs-remote" ] || [ "$MODE" = "range" ]; then
+    LOG_RANGE="${RANGE:-$BASE..HEAD}"
+    if gitleaks git "$REPO" "${GL_CFG[@]}" --log-opts="$LOG_RANGE" --report-format sarif \
+      --report-path "$OUT/gitleaks.sarif" --exit-code 0 >/dev/null 2>"$OUT/gitleaks.err"; then
+      GL_STATE="passed"
+    else
+      GL_STATE="error"
+    fi
+  elif gitleaks stdin "${GL_CFG[@]}" --report-format sarif \
+    --report-path "$OUT/gitleaks.sarif" --exit-code 0 < "$OUT/pr.diff" \
+    >/dev/null 2>"$OUT/gitleaks.err"; then
+    GL_STATE="passed"
   else
-    gitleaks dir "$REPO" "${GL_CFG[@]}" \
-      --report-format sarif --report-path "$OUT/gitleaks.sarif" --exit-code 0 >/dev/null 2>&1
+    GL_STATE="error"
   fi
-  SECRETS=$(python3 -c "import json,sys;print(len(json.load(open('$OUT/gitleaks.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
-  echo "  🔑 gitleaks     : $SECRETS secret finding(s)"
-else
-  echo "  🔑 gitleaks     : ⚠️ not installed (skip)"
+  if [ "$GL_STATE" = "passed" ]; then
+    SECRETS="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["runs"][0].get("results", [])))' "$OUT/gitleaks.sarif" 2>/dev/null)" || GL_STATE="error"
+    if [ "$GL_STATE" = "passed" ] && [ "$SECRETS" -gt 0 ]; then GL_STATE="findings"; fi
+  fi
 fi
+echo "  gitleaks : $GL_STATE${SECRETS:+ (findings=$SECRETS)}"
 
-# ---- 2. SBOM + CVE + VEX (syft -> grype) -----------------------------------
+# Dependency analysis intentionally describes the resulting repository state,
+# rather than only the patch. The summary distinguishes it from diff-scoped scans.
 if command -v syft >/dev/null 2>&1 && command -v grype >/dev/null 2>&1; then
-  syft scan "dir:$REPO" -o "spdx-json=$OUT/sbom.spdx.json" -q >/dev/null 2>&1
-  VEX=(); [ -f "$REPO/.vex/openvex.json" ] && VEX=(--vex "$REPO/.vex/openvex.json")
-  if grype "sbom:$OUT/sbom.spdx.json" --add-cpes-if-none "${VEX[@]}" -o json > "$OUT/grype.json" 2>"$OUT/grype.err"; then
-    read -r CVE_CRIT CVE_HIGH < <(python3 -c "
-import json
-m=json.load(open('$OUT/grype.json')).get('matches',[])
-sev=[x['vulnerability']['severity'] for x in m]
-print(sev.count('Critical'), sev.count('High'))" 2>/dev/null || echo "0 0")
-    echo "  📦 grype        : $CVE_CRIT Critical, $CVE_HIGH High CVE(s)"
-  else
-    echo "  📦 grype        : ⚠️ failed (DB not staged? see $OUT/grype.err)"
-  fi
-else
-  echo "  📦 syft/grype   : ⚠️ not installed (skip)"
-fi
-
-# ---- 3. AI code audit (reuse the target repo's ai_audit.py) -----------------
-# Pick up the API key from an optional 0600 env file if not already exported.
-if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$HOME/.config/hpc-devsecops.env" ]; then
-  # shellcheck source=/dev/null
-  . "$HOME/.config/hpc-devsecops.env"
-fi
-
-AUDIT="$REPO/.github/scripts/ai_audit.py"
-# Prefer the hpc-devsecops venv (which has the anthropic SDK) over system python.
-PYBIN="${HPC_DEVSECOPS_HOME:-$HOME/hpc-devsecops}/.venv/bin/python"
-[ -x "$PYBIN" ] || PYBIN=python3
-if [ "$DO_AI" = 1 ] && [ -f "$AUDIT" ]; then
-  if ! "$PYBIN" -c "import anthropic" >/dev/null 2>&1; then
-    echo "  🤖 ai-audit     : ⚠️ 'anthropic' not installed — run: pip install anthropic"
-    AI_STATE="unavailable"
-  elif [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    echo "  🤖 ai-audit     : ⚠️ ANTHROPIC_API_KEY not set (login node has egress) — UNREVIEWED"
-    AI_STATE="unreviewed"
-  else
-    ( cd "$OUT" && "$PYBIN" "$AUDIT" "$OUT/pr.diff" >/dev/null 2>&1 )
-    if [ -f "$OUT/ai-audit.sarif" ]; then
-      # Only trust the audit if the SARIF marks the run successful. ai_audit.py
-      # writes the SARIF even on API/parse errors (empty results), so
-      # file-existence alone is a FALSE "reviewed" — a 401 would read as clean.
-      read -r AI_OK AI_HIGH < <(python3 -c "
-import json
-r=json.load(open('$OUT/ai-audit.sarif'))['runs'][0]
-ok=(r.get('invocations') or [{}])[0].get('executionSuccessful', True)
-high=sum(1 for x in r['results'] if x.get('level')=='error')
-print(int(bool(ok)), high)" 2>/dev/null || echo "0 0")
-      if [ "${AI_OK:-0}" = 1 ]; then
-        AI_STATE="reviewed"
-        echo "  🤖 ai-audit     : $AI_HIGH high finding(s)  (report: $OUT/ai-audit-report.md)"
+  if syft scan "dir:$REPO" -o "spdx-json=$OUT/sbom.spdx.json" -q \
+      >/dev/null 2>"$OUT/syft.err" && [ -s "$OUT/sbom.spdx.json" ]; then
+    VEX=(); [ -f "$REPO/.vex/openvex.json" ] && VEX=(--vex "$REPO/.vex/openvex.json")
+    if grype "sbom:$OUT/sbom.spdx.json" --add-cpes-if-none "${VEX[@]}" \
+        -o json > "$OUT/grype.json" 2>"$OUT/grype.err"; then
+      COUNTS="$(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])).get("matches", []); s=[x.get("vulnerability",{}).get("severity") for x in m]; print(s.count("Critical"),s.count("High"))' "$OUT/grype.json" 2>/dev/null)"
+      if read -r CVE_CRIT CVE_HIGH <<< "$COUNTS" && [[ "$CVE_CRIT" =~ ^[0-9]+$ ]] && [[ "$CVE_HIGH" =~ ^[0-9]+$ ]]; then
+        CVE_STATE="passed"
+        [ "$CVE_CRIT" -gt 0 ] && CVE_STATE="findings"
       else
-        AI_HIGH=0
-        AI_STATE="unreviewed"
-        echo "  🤖 ai-audit     : ⚠️ did NOT complete (bad key / API error) — UNREVIEWED (see $OUT/ai-audit-report.md)"
+        CVE_STATE="error"
       fi
     else
-      echo "  🤖 ai-audit     : ⚠️ produced no output"
-      AI_STATE="error"
+      CVE_STATE="error"
     fi
+  else
+    CVE_STATE="error"
   fi
-elif [ "$DO_AI" = 0 ]; then
-  echo "  🤖 ai-audit     : skipped (--no-ai)"
-else
-  echo "  🤖 ai-audit     : ⚠️ $AUDIT not found in target repo (skip)"
+fi
+echo "  syft/grype: $CVE_STATE (Critical=$CVE_CRIT High=$CVE_HIGH; full repository state)"
+
+AUDIT="$REPO/.github/scripts/ai_audit.py"
+PYBIN="${HPC_DEVSECOPS_HOME:-$(cd "$(dirname "$0")/.." && pwd)}/.venv/bin/python"
+[ -x "$PYBIN" ] || PYBIN=python3
+ENV_FILE="$HOME/.config/hpc-devsecops.env"
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$ENV_FILE" ]; then
+  ENV_MODE="$(stat -c '%a' "$ENV_FILE" 2>/dev/null || echo unknown)"
+  case "$ENV_MODE" in
+    600|400)
+      # shellcheck source=/dev/null
+      . "$ENV_FILE"
+      ;;
+    *) echo "  ai-audit: refusing insecure env file mode $ENV_MODE ($ENV_FILE)" >&2 ;;
+  esac
 fi
 
-# ---- verdict ----------------------------------------------------------------
-echo
+if [ "$DO_AI" = 0 ]; then
+  AI_STATE="skipped_by_user"
+elif [ ! -f "$AUDIT" ]; then
+  AI_STATE="not_configured"
+elif ! "$PYBIN" -c 'import anthropic' >/dev/null 2>&1; then
+  AI_STATE="unavailable"
+elif [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  AI_STATE="unavailable"
+else
+  if (cd "$OUT" && "$PYBIN" "$AUDIT" "$OUT/pr.diff" >/dev/null 2>"$OUT/ai-audit.err"); then
+    :
+  fi
+  if [ -f "$OUT/ai-audit.sarif" ]; then
+    AI_RESULT="$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1]))["runs"][0]; inv=r.get("invocations") or []; ok=bool(inv) and inv[0].get("executionSuccessful") is True; high=sum(x.get("level")=="error" for x in r.get("results",[])); print(int(ok),high)' "$OUT/ai-audit.sarif" 2>/dev/null)"
+    if read -r AI_OK AI_HIGH <<< "$AI_RESULT" && [ "${AI_OK:-0}" = 1 ] && [[ "$AI_HIGH" =~ ^[0-9]+$ ]]; then
+      AI_STATE="reviewed"
+      [ "$AI_HIGH" -gt 0 ] && AI_STATE="findings"
+    else
+      AI_HIGH=0; AI_STATE="error"
+    fi
+  else
+    AI_STATE="error"
+  fi
+fi
+echo "  ai-audit : $AI_STATE (high=$AI_HIGH)"
+
+FINDINGS=0; ERRORS=0
+[ "$GL_STATE" = "findings" ] && FINDINGS=1
+[ "$CVE_STATE" = "findings" ] && FINDINGS=1
+[ "$AI_STATE" = "findings" ] && FINDINGS=1
+case "$GL_STATE" in unavailable|error) ERRORS=1 ;; esac
+case "$CVE_STATE" in unavailable|error) ERRORS=1 ;; esac
+case "$AI_STATE" in unavailable|error) ERRORS=1 ;; esac
+
+OVERALL="passed"
+[ "$FINDINGS" = 1 ] && OVERALL="findings"
+[ "$ERRORS" = 1 ] && OVERALL="incomplete"
 {
   echo "# hpc-devsecops report — $REPO_NAME @ $TS"
-  echo "mode=$MODE base=${BASE:-} diff_lines=$DIFF_LINES"
-  echo "secrets=$SECRETS cve_critical=$CVE_CRIT cve_high=$CVE_HIGH ai_high=$AI_HIGH ai_state=$AI_STATE"
+  echo "overall=$OVERALL mode=$MODE base=${BASE:-} range=${RANGE:-} diff_lines=$DIFF_LINES"
+  echo "gitleaks_state=$GL_STATE secrets=$SECRETS"
+  echo "cve_state=$CVE_STATE cve_scope=full-repository cve_critical=$CVE_CRIT cve_high=$CVE_HIGH"
+  echo "ai_state=$AI_STATE ai_high=$AI_HIGH"
 } > "$OUT/summary.txt"
 
-FAIL=0
-[ "${SECRETS:-0}" -gt 0 ] && FAIL=1
-[ "${CVE_CRIT:-0}" -gt 0 ] && FAIL=1
-[ "${AI_HIGH:-0}" -gt 0 ] && FAIL=1
-
-if [ "$FAIL" = 1 ]; then
-  echo "❌ hpc-devsecops: issues found (secrets=$SECRETS crit=$CVE_CRIT ai_high=$AI_HIGH)"
-  [ "$BLOCK" = 1 ] && { echo "   --block set → blocking."; exit 1; }
-  echo "   (report-only; pass --block to gate)"
+echo
+if [ "$ERRORS" = 1 ]; then
+  echo "INCOMPLETE: one or more configured/required checks did not complete"
+  [ "$BLOCK" = 1 ] && exit 2
+elif [ "$FINDINGS" = 1 ]; then
+  echo "FINDINGS: secrets=$SECRETS critical_cves=$CVE_CRIT ai_high=$AI_HIGH"
+  [ "$BLOCK" = 1 ] && exit 1
 else
-  echo "✅ hpc-devsecops: clean (secrets=0 crit=0 ai_high=0, ai_state=$AI_STATE)"
-  [ "$AI_STATE" = "unreviewed" ] || [ "$AI_STATE" = "unavailable" ] && echo "   ⚠️ note: AI audit did not run — not the same as reviewed-clean."
+  echo "PASS: all required/configured checks completed with no blocking findings"
 fi
 exit 0

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# The fake scanners/compilers below are emitted with printf; the single-quoted
+# $1/$#/$@/$2 inside those here-strings are deliberate literal bodies for the
+# generated scripts, not this script's own variables. SC2016 is a false positive
+# for that pattern throughout this file.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,7 +23,7 @@ export HOME="$TMP/home"
 export HPC_DEVSECOPS_AUDIT_ROOT="$TMP/audits"
 mkdir -p "$HOME" "$TMP/bin"
 
-help="$($ROOT/tools/devsecops-local.sh --help)"
+help="$("$ROOT/tools/devsecops-local.sh" --help)"
 if [[ "$help" == *"set -uo pipefail"* ]]; then bad "help contains implementation"; else ok "help contains only usage"; fi
 expect_rc "--base requires an argument" 2 "$ROOT/tools/devsecops-local.sh" --base
 expect_rc "blocking mode fails closed when tools are missing" 2 env PATH=/usr/bin:/bin "$ROOT/tools/devsecops-local.sh" --worktree --no-ai --block "$ROOT"

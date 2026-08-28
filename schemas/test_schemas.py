@@ -45,6 +45,39 @@ def _complete_provenance(doc: dict) -> None:
     doc["environment"]["compiler"] = "ifx 2025.2.1"
 
 
+GATE_RAN = {
+    "gate": "hpc-devsecops",
+    "cc_test_commit": "f964acd80d127061f6b4365d43e1bdc3ffb467ef",
+    "scanned_commit": "e8d68996e30499ea2027a87f7e5da81dae8ded29",
+    "timestamp": "2026-06-16T00:00:00Z",
+    "status": "PASS",
+    "scans": {
+        "secrets": {
+            "tool": "gitleaks",
+            "state": "scanned",
+            "findings": 0,
+            "target_config": True,
+        },
+        "vulnerabilities": {
+            "tool": "syft -> grype",
+            "state": "scanned",
+            "critical": 0,
+            "high": 0,
+            "vex_applied": True,
+        },
+        "ai_audit": {"tool": "ai_audit.py", "state": "reviewed", "high_findings": 0},
+    },
+}
+
+
+def _with_gate(status: str = "PASS"):
+    def apply(doc: dict) -> None:
+        gate = copy.deepcopy(GATE_RAN)
+        gate["status"] = status
+        doc["security"] = gate
+
+    return apply
+
 
 POSITIVE = [
     ("format example validates", EXAMPLE),
@@ -70,9 +103,52 @@ POSITIVE = [
             )
         ),
     ),
+    ("security block for a gate that ran clean", mutate(_with_gate("PASS"))),
+    (
+        "security block for a gate that ran but was incomplete",
+        mutate(_with_gate("INCOMPLETE")),
+    ),
 ]
 
 NEGATIVE = [
+    ("security block omitted entirely", mutate(lambda d: d.pop("security"))),
+    (
+        "gate claims PASS without any scan detail",
+        mutate(lambda d: d.__setitem__("security", {"gate": "hpc-devsecops", "status": "PASS"})),
+    ),
+    (
+        "scan detail missing the AI audit plane",
+        mutate(
+            lambda d: (
+                _with_gate("PASS")(d),
+                d["security"]["scans"].pop("ai_audit"),
+            )
+        ),
+    ),
+    (
+        "secret scan reporting a count with no state",
+        mutate(
+            lambda d: (_with_gate("PASS")(d), d["security"]["scans"]["secrets"].pop("state"))
+        ),
+    ),
+    (
+        "unknown scan state",
+        mutate(
+            lambda d: (
+                _with_gate("PASS")(d),
+                d["security"]["scans"]["secrets"].__setitem__("state", "clean"),
+            )
+        ),
+    ),
+    (
+        "ai_audit state borrowed from the wrong vocabulary",
+        mutate(
+            lambda d: (
+                _with_gate("PASS")(d),
+                d["security"]["scans"]["ai_audit"].__setitem__("state", "scanned"),
+            )
+        ),
+    ),
     (
         "acceptance block in which nothing gates",
         mutate(

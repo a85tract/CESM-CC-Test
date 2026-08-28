@@ -76,9 +76,20 @@ the schema and the verifier stay in agreement.
 8. `evidence/` is append-only: a manifest already present on the base branch must not be
    modified by a pull request.
 9. `acceptance.kind: statistical` is rejected while its `status` is `provisional`.
+10. `security.scanned_commit` equals `artifact.commit` — otherwise the Cyber verdict
+    describes different code than the correctness verdict.
+11. `security.status` is `PASS` only when all three scans ran (`scanned` / `scanned` /
+    `reviewed`) and every count is zero.
+
 **Warnings**
 
-10. `evidence_class: reconstructed` — usable as a format example only.
-11. `outputs.files` is empty — no fingerprint was retained, so the run cannot be checked
+12. `evidence_class: reconstructed` — usable as a format example only.
+13. `outputs.files` is empty — no fingerprint was retained, so the run cannot be checked
     against a future re-run.
-12. `outputs.retention` is `unknown` — the purge date was never recorded.
+14. `outputs.retention` is `unknown` — the purge date was never recorded.
+15. `security.status` is `NOT_RUN` or `INCOMPLETE` — the validated code was not fully
+    scanned.
+16. `security.scans.secrets.target_config` is false — the secret scan used default rules
+    with no project allowlist.
+17. `security.scans.vulnerabilities.vex_applied` is false — the CVE counts include
+    findings nobody has assessed as not-affected.

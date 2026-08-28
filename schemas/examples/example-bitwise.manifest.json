@@ -130,8 +130,13 @@
     }
   ],
 
+  "security": {
+    "gate": "hpc-devsecops",
+    "status": "NOT_RUN"
+  },
+
   "result": "PASS",
   "timestamp": "2026-06-16T00:00:00Z",
 
-  "notes": "ILLUSTRATIVE FORMAT EXAMPLE - NOT EVIDENCE. Structure only. The commits, the reference model and the PASS verdict restate what PyCAM5/doc/internal_validation.md records for the 2026-06-16 PI and MCO 6-month all-Codon runs, but every digest here is a synthetic placeholder (all zeros), file lists are empty, and the compiler, MPI, Codon and reference revision were not captured at the time. evidence_class is 'reconstructed' for exactly that reason. Do not copy this file into evidence/ and do not cite it as a validation result."
+  "notes": "ILLUSTRATIVE FORMAT EXAMPLE - NOT EVIDENCE. Structure only. The commits, the reference model and the PASS verdict restate what PyCAM5/doc/internal_validation.md records for the 2026-06-16 PI and MCO 6-month all-Codon runs, but every digest here is a synthetic placeholder (all zeros), file lists are empty, and the compiler, MPI, Codon and reference revision were not captured at the time. evidence_class is 'reconstructed' for exactly that reason. The Cyber gate was never run against this commit, which is why security.status is NOT_RUN rather than absent. Do not copy this file into evidence/ and do not cite it as a validation result."
 }

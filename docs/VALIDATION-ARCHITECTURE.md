@@ -148,24 +148,41 @@ CESM-CC-Test/
 │   └── examples/
 │       └── example-bitwise.manifest.json
 │
-├── correctness/                    # SCAFFOLDED — every module is a stub
-│   ├── README.md                   # how the four tools compose
-│   ├── compare_runpair.py          # step 2: port from PyCAM5, add --json
-│   ├── compare_stats.py            # step 8: blocked on D4
-│   ├── make_manifest.py            # step 3: comparator output + probe -> manifest
-│   └── verify_evidence.py          # step 3: schema + invariants; the CI entry point
+├── correctness/                    # NEW — the Correctness half
+│   ├── compare_runpair.py          # migrated from PyCAM5, plus --json
+│   ├── compare_stats.py            # Pipeline 2 statistical comparator (new)
+│   ├── make_manifest.py            # comparator output + environment probe -> manifest
+│   └── verify_evidence.py          # schema + self-consistency check; the CI entry point
 │
-├── tools/  hpc/  hooks/            # existing Cyber half, untouched
+├── tools/  hpc/  hooks/            # Cyber half — see §11
+│   ├── devsecops-local.sh          #   per-scan state + summary.json (updated)
+│   ├── install-config.sh           #   installs the templates below (new)
+│   └── test-ai-audit.py            #   self-test for the auditor (new)
 │
-├── benchmarks/                     # SCAFFOLDED — format defined, cases empty
-│   ├── README.md                   # the format, and why it owns the criteria
-│   ├── TEMPLATE.yaml               # annotated starting point
-│   └── {pycam5,freecam,pyccpp,jax-kernels,numba-kernels,pyphys-bridge}/
+├── templates/                      # NEW — the config each product repo needs
+│   ├── .gitleaks.toml
+│   ├── .vex/openvex.json
+│   └── .github/scripts/ai_audit.py
 │
-├── evidence/                       # SCAFFOLDED — append-only, nothing filed yet
-│   ├── README.md                   # the rules: immutability, versioning, retention
-│   └── INDEX.md                    # generated cross-product table
-│                                   # -> <product>/<version>/{manifest.json,summary.md,report.txt}
+├── benchmarks/                     # case definitions and acceptance baselines
+│   ├── pycam5/
+│   │   ├── pi-6month-allcodon.yaml
+│   │   └── mco-6month-allcodon.yaml
+│   ├── freecam/
+│   ├── jax-kernels/
+│   ├── numba-kernels/
+│   ├── pyphys-bridge/
+│   └── pyccpp/                     # placeholder
+│
+├── evidence/                       # the index — manifests and summaries only
+│   ├── INDEX.md                    # generated cross-product table
+│   ├── pycam5/
+│   │   └── v0.2.0/
+│   │       ├── manifest.json
+│   │       ├── summary.md
+│   │       └── report.txt
+│   └── jax-kernels/
+│       └── v0.1.0/
 │
 └── .github/workflows/
     ├── verify-evidence.yml         # validates every manifest in this repo
@@ -215,6 +232,7 @@ the two drift, this section records only why it expands the minimal contract:
 | `status` includes `ERROR`, not just PASS/FAIL | A file-set mismatch means nothing was compared; the comparator already exits 2 for it |
 | `numeric_md5_equal` records `dump_format` and `dump_tool` | The digest is only comparable across manifests that used the same dump format |
 | `evidence_class: complete \| reconstructed` | Backfilled history cannot always name the compiler or reference revision; better to mark it than to invent it |
+| `security` block, required, with a state beside every count | Makes each evidence package a joint claim — this code computes the right answer *and* it was scanned. A missing block would be indistinguishable from a clean scan, so absence is not permitted; `NOT_RUN` is |
 | `outputs.retention`, `outputs.assets_release`, per-file md5 | Directly resolves adjustment B; ties tier 1 and tier 2 to the manifest |
 | `environment` becomes structured | A single free-text string cannot be diffed between runs |
 
@@ -279,22 +297,13 @@ The sketch settles three of the five decisions carried over from the earlier dra
 | D2 | Version source for `evidence/<product>/<version>/` — all three repos have zero tags | **Settled in principle** — the sketch's `v0.2.0` layout means version directories are release tags, so products start tagging. Proposed bridge until a product cuts its first tag: `unreleased-<commit[:8]>`, with `artifact.commit` always authoritative. |
 | D3 | How evidence reaches CC-Test from the HPC side | **Settled** — manual pull request. Derecho compute nodes generally have no outbound network, so automated push is not available. |
 | D4 | Pipeline 2 statistical criteria | **Open — needs your input.** "1.24e-6 rel diff" and "within ensemble spread" must become executable: tolerance value and norm, the compared variable set, ensemble member count, and the spread test. No tool exists; `compare_stats.py` is net new work and cannot be specified without these definitions. |
-| D5 | Cyber-half config gap: no product repo has `.gitleaks.toml`, `.vex/openvex.json`, or `ai_audit.py`, so those checks skip silently | **Out of scope here — owned by the security workstream.** Recorded because it is a real gap, not because this document proposes to close it. |
-| D6 | Should an evidence package also record the Cyber gate's verdict for the same commit? | **Open — a proposal, and a cross-boundary one.** A `security` block on the manifest would make one package answer both "does this code compute the right answer" and "was it scanned", which is what makes CC-Test a single assurance system rather than two tools in one repository. It also imposes a contract on the gate's output (a machine-readable summary carrying a state per scan, so a zero count can be told apart from a scan that never ran). That contract has to be agreed with the security workstream, not assumed — so the schema deliberately does **not** define the block yet. |
+| D5 | Cyber-half config gap: no product repo had `.gitleaks.toml`, `.vex/openvex.json`, or `ai_audit.py`, so those checks skipped silently | **Settled — in scope, and the CC-Test side is done.** `ai_audit.py` did not exist anywhere, so it was written rather than merely installed. Templates for all three now live in `templates/`, `tools/install-config.sh` installs them into a target repo, and the evidence manifest records the Cyber verdict (§6). Installing into the six product repos is step 10. |
 
 ---
 
 ## 9. Migration steps
 
 Ordered so each step is independently reviewable.
-
-**Who does what.** This repository provides the *framework*: the schema that says what an
-evidence package is, the directory structure, and the interface contract each tool has to
-satisfy. Filling those contracts in — the comparators, the manifest builder, the verifier,
-and the per-product benchmark definitions — is Qinrun's. Every module under `correctness/`
-is a stub that states its inputs, its outputs, and the invariants it must enforce, and
-raises `NotImplementedError` rather than returning a plausible-looking wrong answer. The
-Cyber half (steps 10, and D5/D6) belongs to the security workstream.
 
 | # | Step | Lands in | Depends on |
 |---|---|---|---|
@@ -307,7 +316,7 @@ Cyber half (steps 10, and D5/D6) belongs to the security workstream.
 | 7 | Add `VALIDATION.md` + `validation.yml` to PyCAM5 | PyCAM5 | 6 |
 | 8 | Define the statistical acceptance vocabulary, write `compare_stats.py`, extend to `jax-kernels` / `numba-kernels` / `pyphys-bridge` | CC-Test + product repos | 7, D4 |
 | 9 | Extend to `freeCAM` (bitwise; the CAM-SIMA oracle gate becomes a benchmark case) | CC-Test + freeCAM | 7 |
-| 10 | Close the Cyber config gap — **owned by the security workstream, not this plan** | Product repos | D5 |
+| 10 | **CC-Test side DONE** — `ai_audit.py` written, all three templates in `templates/`, `tools/install-config.sh` installs them, runner reports per-scan state. Remaining: run the installer against the six product repos and commit the result | Product repos | D5 |
 | 11 | Rewrite CC-Test `README.md` around the two halves; update the overview's "Correctness later" line | CC-Test + overview | 8, 9 |
 
 Step 2 should **move** rather than copy: PyCAM5 keeps a thin wrapper or simply a pointer in
@@ -328,7 +337,51 @@ information is still obtainable.**
 - No NetCDF output committed into Git, and no assumption that raw model output fits in
   Release assets.
 - No attempt to make GitHub Actions execute a CESM validation run.
-- No changes to the Cyber half. `tools/`, `hpc/`, and `hooks/` are owned by the security
-  workstream and are out of scope for this document — see D5 and D6.
+- No rewrite of the Cyber half. It was originally listed here as untouched; closing D5
+  changed that, and the edits are named so the claim stays honest. `tools/asan.sh`,
+  `hpc/asan-cam.pbs`, and `hooks/pre-push` are unchanged. `tools/devsecops-local.sh`
+  gained per-scan state tracking, a `summary.json`, and a `--require-complete` flag — see
+  §11 — because the manifest's `security` block cannot be filled honestly from a runner
+  that reports a zero count identically whether or not the scan ran.
 - `sec-track` is out of scope (restricted access, handled separately).
 
+---
+
+## 11. The Cyber half
+
+Closing D5 turned up more than missing configuration.
+
+**`ai_audit.py` never existed.** The runner reads it from
+`<target>/.github/scripts/ai_audit.py` and the README calls it "your `ai_audit.py`", but
+no copy was present in any repository in the tree. The AI audit had therefore never run
+against any product. `templates/.github/scripts/ai_audit.py` is a written implementation:
+it reviews a unified diff with Claude under a structured-output schema, splits large
+diffs by file so nothing is silently truncated, and writes `ai-audit.sarif` plus a
+Markdown report.
+
+**The false-clean bug was wider than the one already fixed.** Commit `f964acd` stopped the
+AI audit reporting `reviewed` when it had failed. The same defect remained in the other
+two planes: with gitleaks or grype absent, their counters stayed at zero and the gate
+printed `✅ clean`. "Not scanned" and "scanned, found nothing" were indistinguishable in
+the output — and would have been indistinguishable in any evidence built from it.
+
+`tools/devsecops-local.sh` now tracks a state per scan (`scanned` / `not_installed` /
+`failed` / `skipped`), reports `INCOMPLETE` rather than `clean` when any plane did not
+run, and writes a machine-readable `summary.json` beside `summary.txt` for
+`make_manifest.py` to read. `--require-complete` exits non-zero on an incomplete gate;
+`--block` keeps its original meaning, so the pre-push hook's behaviour is unchanged unless
+a repository opts in.
+
+**The manifest records the Cyber verdict.** `security` is a required block on every
+evidence manifest, with a required state beside every count and an explicit `NOT_RUN`
+status. An evidence package therefore always states whether the validated code was
+scanned; silence is not an available answer. This is what makes CC-Test one assurance
+system rather than two tools sharing a repository — a reviewer reads a single manifest and
+sees both that the code computes the right answer and that it was scanned for
+vulnerabilities, at the same commit.
+
+**Known gap.** Producing a `security` block on the HPC side needs the gate to run where
+there is outbound network: grype's vulnerability database and the AI audit's API both need
+egress, which Derecho compute nodes do not have. Run the gate on a login node or locally
+and feed its `summary.json` into `make_manifest.py`; the schema's `INCOMPLETE` status
+exists so a partial run is still recordable rather than silently omitted.

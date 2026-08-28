@@ -22,3 +22,17 @@ jobs:
         run: shellcheck tools/*.sh hooks/pre-push tests/*.sh
       - name: Integration tests
         run: tests/run.sh
+
+  schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install jsonschema
+        run: pip install jsonschema
+      - name: Compile Python
+        run: python -m py_compile correctness/*.py schemas/*.py tools/test-ai-audit.py templates/.github/scripts/ai_audit.py
+      - name: Schema self-test
+        run: python schemas/test_schemas.py

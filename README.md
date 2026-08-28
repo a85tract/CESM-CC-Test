@@ -28,9 +28,11 @@ benchmarks/    per-product case definitions and acceptance criteria
 evidence/      the append-only index of validated versions
 docs/          VALIDATION-ARCHITECTURE.md — the plan, ownership, open decisions
 
-tools/         the Cyber gate: devsecops-local.sh, asan.sh, install-hooks.sh
+tools/         the Cyber gate: devsecops-local.sh, asan.sh, install-hooks.sh, install-config.sh
+templates/     starter .gitleaks.toml / .vex/openvex.json / ai_audit.py for a target repo
 hooks/         pre-push
 hpc/           asan-cam.pbs
+SECURITY.md    the gate's security model, trust boundaries, and disclosure policy
 ```
 
 ---
@@ -164,8 +166,15 @@ repo's own* configuration, so local and cloud never drift.
 | 📦 SBOM + CVE + VEX | `syft` → `grype` | `.vex/openvex.json` |
 | 🤖 AI code audit | your `ai_audit.py` (Claude) | `.github/scripts/ai_audit.py` |
 
-If a config or tool is missing, that check is skipped with a warning — never a
-hard error.
+Install the three configs into a target repo with `tools/install-config.sh <repo>`
+— `templates/` holds the versions to start from, including a working `ai_audit.py`.
+Commit them in the target repo so CI reads the same config the local gate does.
+
+The gate **fails closed**: if a configured or required check does not actually run
+(missing tool, unavailable key, malformed output), it reports **INCOMPLETE**, never
+`clean` — a finding count of zero from a scan that never happened is not a clean
+result. Under `--block` an incomplete gate blocks the push (exit 2); pass
+`--require-complete` to block on incompleteness even without `--block`.
 
 ## Requirements
 
@@ -237,7 +246,7 @@ CAM with inputs) and ~2–3× slower, so it lives here, not in `git push`.
 ```bash
 # Clone into ~/hpc-devsecops so all the default paths (venv,
 # ~/.config/hpc-devsecops.env, ~/audits/hpc-devsecops) resolve with no extra config.
-git clone git@github.com:a85tract/hpc-devsecops.git ~/hpc-devsecops
+git clone git@github.com:a85tract/CESM-CC-Test.git ~/hpc-devsecops
 # Cloned somewhere else? point the toolkit at it:
 #   export HPC_DEVSECOPS_HOME=/path/to/your/checkout
 ```
@@ -263,7 +272,8 @@ git clone git@github.com:a85tract/hpc-devsecops.git ~/hpc-devsecops
 | `--worktree` | audit all uncommitted changes (`git diff HEAD`) |
 | `--vs-remote` | audit commits not yet pushed (default when the branch has an upstream) |
 | `--base REF` | base ref for `--vs-remote` (default: the branch upstream) |
-| `--block` | exit non-zero on any secret / Critical CVE / high AI finding |
+| `--block` | fail on findings (exit 1) and fail closed on an incomplete scan (exit 2) |
+| `--require-complete` | block on an incomplete gate even without `--block` |
 | `--no-ai` | skip the AI code audit |
 
 `--vs-remote` (new commits only) is the quietest mode — it won't re-flag
@@ -276,8 +286,10 @@ pre-existing findings. `--worktree` scans everything and is the noisiest.
 ```
 
 Installs a symlinked `pre-push` hook so `git push` from that repo runs
-hpc-devsecops first and **blocks** the push on findings. Emergency bypass:
-`git push --no-verify`. Uninstall: `rm <repo>/.git/hooks/pre-push`.
+hpc-devsecops first and **blocks** the push on findings or an incomplete scan.
+The hook reads Git's actual local/remote SHA pairs, including new branches and
+multi-ref pushes. Emergency bypass: `git push --no-verify`. Uninstall:
+`rm <repo>/.git/hooks/pre-push`.
 
 ## Output
 
@@ -285,16 +297,19 @@ Reports are written under `~/audits/hpc-devsecops/<repo>/<timestamp>/`:
 
 ```
 pr.diff            gitleaks.sarif     grype.json     sbom.spdx.json
-ai-audit.sarif     ai-audit-report.md summary.txt
+ai-audit.sarif     ai-audit-report.md summary.txt    summary.json
 ```
 
-Nothing is written under `/glade/work`. Exit code is `0` unless `--block` is set
-and an issue is found (then `1`).
+Nothing is written under `/glade/work`. `summary.json` is the machine-readable
+mirror of `summary.txt` (status `PASS` / `FINDINGS` / `INCOMPLETE`). Exit codes:
+`0` clean or report-only; `1` findings under `--block`; `2` an incomplete gate
+under `--block` / `--require-complete`, or a usage/environment error.
 
 ## Notes
 
-- A `⚠️ UNREVIEWED` note means the AI audit did not actually run (missing key or
-  SDK) — that is **not** the same as reviewed-clean.
+- An AI state other than `reviewed` (e.g. `unavailable`, `error`,
+  `not_configured`) means the audit did not actually run — **not** the same as
+  reviewed-clean, and it makes the gate `INCOMPLETE`.
 - Run the AI step on the login node (egress), or point the target repo's
   `ai_audit.py` at a local vLLM endpoint for a fully offline gate.
 - The same three static binaries (gitleaks, syft, grype) run in CI and on HPC;
@@ -306,16 +321,18 @@ and an issue is found (then `1`).
 
 | Area | Owner |
 |---|---|
-| Correctness framework — schema, structure, contracts | this branch |
+| Correctness framework — schema, structure, contracts | lewisychen |
 | Correctness implementation — comparators, manifest builder, verifier, benchmarks | Qinrun |
 | Cyber half — `tools/`, `hooks/`, `hpc/`, and the product-repo config | Chien-Wei |
 
-`docs/VALIDATION-ARCHITECTURE.md` §8 tracks the open decisions. Two of them need
-a person, not more code:
+`docs/VALIDATION-ARCHITECTURE.md` §8 tracks the open decisions. One still needs a
+person, not more code:
 
 - **D4** — the Pipeline 2 statistical acceptance vocabulary. Blocks
   `compare_stats.py` only; the bitwise path is unaffected.
-- **D6** — should an evidence package also record the Cyber gate's verdict for
-  the same commit? It would make one record answer both questions, but it puts a
-  contract on the gate's output, so it needs agreement across both halves rather
-  than a decision from one.
+
+**D6** — whether an evidence package also records the Cyber gate's verdict for the
+same commit — is **resolved: yes.** The manifest carries a required `security`
+block; when the gate has not run for that commit its `status` is `NOT_RUN`, so a
+package is never silently missing the Cyber half rather than honestly marking it
+absent. See `docs/VALIDATION-ARCHITECTURE.md` §11.

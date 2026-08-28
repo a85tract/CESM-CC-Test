@@ -1,0 +1,54 @@
+# Benchmark template — copy to benchmarks/<product>/<case-id>.yaml and fill the TODOs.
+# The `acceptance` block must validate against ../schemas/acceptance.v1.json.
+
+id: TODO-case-id            # must equal this file's stem
+product: TODO               # pycam5 | freecam | pyccpp | jax-kernels | numba-kernels | pyphys-bridge
+description: TODO           # one line, shown in the generated evidence index
+
+case:
+  compset: TODO
+  resolution: TODO
+  duration: TODO            # e.g. "6 months"
+  ranks: TODO               # integer
+  # Anything else needed to reproduce the run — env file, SourceMods, input data set.
+  notes: TODO
+
+reference:
+  model: TODO               # e.g. "iCESM1.3.1_fzhu CAM"
+  commit_or_tag: TODO
+  provenance: TODO          # e.g. "pristine native baseline, no SourceMods"
+
+# ---------------------------------------------------------------------------
+# Acceptance criteria. The example below is the bitwise shape used by
+# Pipeline 1; delete it and use the statistical shape for Pipeline 2 once
+# decision D4 settles that vocabulary.
+#
+# Every rule needs an explicit `gating`. A rule that is measured but does not
+# gate still belongs here with `gating: false` — that is how the evidence
+# records "we looked at this and chose not to block on it", rather than leaving
+# the reader to guess what the PASS covered.
+# ---------------------------------------------------------------------------
+acceptance:
+  kind: bitwise
+  rules:
+    - check: file_set_equal
+      scope: "*.cam.{h0,r,rh0,rs}.*.nc"
+      gating: true          # always true — a mismatch means nothing was compared
+
+    - check: numeric_md5_equal
+      scope: "*.cam.{h0,r,rh0,rs}.*.nc"
+      dump_format: "%+.17g" # the digest is only comparable at the same format
+      dump_tool: ncks
+      gating: true
+
+    - check: char_diff_count
+      expect: 0
+      gating: false
+      note: "character variables carry timestamps and case names; reported, not gated"
+
+    - check: timing_delta_pct
+      timers: [physpkg_st1, bc_physics, "CPL:RUN_LOOP"]
+      gating: false
+      note: "performance is reported alongside correctness and never gates it"
+      # If you do set gating: true here, max_abs_pct becomes required — a gating
+      # rule with no bound cannot reach a verdict.

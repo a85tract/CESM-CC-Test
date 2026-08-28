@@ -1,17 +1,131 @@
-# hpc-devsecops
+# CC-Test — Correctness and Cyber Test
 
-The tool is developed in the private `a85tract/CESM-CC-Test` repository; the
-installed command and report namespace remain `hpc-devsecops`.
+The validation hub for the CESM/CAM modernization effort. It answers two
+questions about a modernized model component, and keeps the answers as evidence
+somebody else can check:
+
+- **Correctness** — does the port compute the same answer as the Fortran it replaces?
+- **Cyber** — has the code been scanned for secrets, known vulnerabilities, and defects?
+
+The two halves are independent tools that meet in one record. A reviewer should
+be able to open a single evidence package and see both verdicts for the same
+commit, rather than trusting two separate green checkmarks.
+
+| Half | What it does | Status |
+|---|---|---|
+| [Correctness](#correctness--does-the-port-compute-the-right-answer) | Compares a candidate run against a reference run and files the result as evidence | **Framework only.** Schema and structure in place; the tools are stubs |
+| [Cyber](#cyber--the-hpc-devsecops-gate) | Secret scan, SBOM + CVE + VEX, AI code audit, AddressSanitizer | **In use.** Verified on Derecho |
+
+The Cyber half is also usable standalone against any git repository — it does
+not depend on anything CESM-specific.
+
+## Repository layout
+
+```
+schemas/       what a validation evidence package is — JSON Schema + self-test
+correctness/   the four tools that produce and check one — stubs today
+benchmarks/    per-product case definitions and acceptance criteria
+evidence/      the append-only index of validated versions
+docs/          VALIDATION-ARCHITECTURE.md — the plan, ownership, open decisions
+
+tools/         the Cyber gate: devsecops-local.sh, asan.sh, install-hooks.sh
+hooks/         pre-push
+hpc/           asan-cam.pbs
+```
+
+---
+
+# Correctness — does the port compute the right answer?
+
+## The constraint that shapes everything
+
+A real validation run is a CESM build plus a multi-year integration on Derecho:
+the ifx toolchain, input data, hours of compute, and `/glade` storage. **A GitHub
+runner cannot do any of that.** So the work splits in two, and the split is the
+reason the rest of the design looks the way it does:
+
+```
+Layer 1 — produce evidence          (HPC, offline, PBS or by hand)
+  Derecho: run reference + candidate
+        → correctness/compare_runpair.py --json
+        → make_manifest.py
+        → evidence/<product>/<version>/manifest.json
+        → pull request into this repository
+
+Layer 2 — verify evidence           (GitHub Actions, every PR, seconds)
+  verify_evidence.py: does the manifest validate? does the commit it names
+  exist? do the claimed results follow from the declared criteria? has an
+  existing package been altered?
+```
+
+Layer 2 is everything CI can honestly check, and it is worth checking: it
+catches the case where a `VALIDATION.md` says PASS but points at a commit that
+stopped being the current code months ago.
+
+## What the evidence has to say
+
+`schemas/evidence-manifest.v1.json` and `schemas/acceptance.v1.json` define the
+record. Three things they make impossible to leave implicit:
+
+**Every acceptance rule states whether it gates.** The existing comparator
+measures character-variable differences and GPTL timing, but neither affects its
+exit code — the real criterion is numeric bit-for-bit only. That was true and
+unwritten, so a reader could not tell what a PASS covered. The schema requires a
+`gating` flag on every rule and rejects a criteria block in which nothing gates.
+
+**`ERROR` is not `FAIL`.** When the two run directories hold different file sets,
+nothing was compared. That is an absent comparison, not a failed one, and the
+comparator already exits `2` for it. The schema keeps them distinct.
+
+**A digest records how it was taken.** The numeric md5 is one digest per output
+file, over a fixed-format dump of all numeric variables in it — not one per
+variable. It is only comparable against a digest taken with the same format
+string, so the rule carries `dump_format` and `dump_tool` rather than assuming
+them.
+
+Two more, for the cases that come up in practice: `evidence_class` marks a
+package as `complete` or `reconstructed`, so a historical run whose compiler
+version can no longer be established is recorded honestly instead of having a
+plausible value invented for it; and the statistical criteria for Pipeline 2 are
+present but marked `provisional`, and the verifier rejects any evidence filed
+against them until the tolerance, norm, variable set, and spread test are agreed
+(decision D4).
+
+## Status and where to start
+
+Everything under `correctness/` is a **stub**. Each states its inputs, outputs,
+and the invariants it must enforce, then raises `NotImplementedError` — a stub
+that returned an empty result would let a caller file a *passing* evidence
+package for a comparison that never ran, which is the failure mode the explicit
+gating flags and `ERROR` status exist to prevent.
+
+| Module | Step | Blocked on |
+|---|---|---|
+| `compare_runpair.py` | 2 | nothing — port from `PyCAM5/scripts/validation/compare_cesm_runpair.py`, add `--json` |
+| `make_manifest.py` | 3 | `compare_runpair.py` |
+| `verify_evidence.py` | 3 | nothing — the invariant list is in `schemas/README.md` |
+| `compare_stats.py` | 8 | decision D4 |
+
+Read `correctness/README.md` for how the four compose and the conventions they
+share, then `docs/VALIDATION-ARCHITECTURE.md` for the migration order, the
+open decisions, and who owns what. `schemas/test_schemas.py` is runnable:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install jsonschema
+.venv/bin/python schemas/test_schemas.py
+```
+
+---
+
+# Cyber — the hpc-devsecops gate
 
 A reusable **local** DevSecOps gate for HPC. It runs the same checks as your
 cloud CI pipeline — secret scan, SBOM + CVE + VEX, and an LLM code audit — on
 your own machine, **before you push**. Catch problems (especially leaked
 secrets) while they are still on your login node, not after they reach GitHub.
 
-Built for scientific codebases on HPC (rootless install, no Docker), but it is
-generic — point it at any git repo. Gitleaks runs offline; Syft/Grype run
-offline after the vulnerability DB is staged; the Claude audit requires login-
-node egress unless the target audit script uses a local model endpoint.
+Built for scientific codebases on HPC (rootless install, no Docker, works
+offline), but it is generic — point it at any git repo.
 
 ## Status
 
@@ -50,10 +164,8 @@ repo's own* configuration, so local and cloud never drift.
 | 📦 SBOM + CVE + VEX | `syft` → `grype` | `.vex/openvex.json` |
 | 🤖 AI code audit | your `ai_audit.py` (Claude) | `.github/scripts/ai_audit.py` |
 
-In report-only mode, unavailable tools are recorded as `incomplete`. In
-`--block` mode, required/configured checks fail closed: a missing tool, invalid
-output, API failure, or scanner error blocks the push with exit code 2. AI is
-optional only when the target has no audit script or `--no-ai` is explicit.
+If a config or tool is missing, that check is skipped with a warning — never a
+hard error.
 
 ## Requirements
 
@@ -107,16 +219,13 @@ module load intel-oneapi
 Run the whole model under ASan (heavy — build + run with instrumentation):
 
 ```bash
-qsub -A <account> \
-  -v PROJECT=<account>,CESM_ROOT=$HOME/cam_cesm2_1_rel \
-  ~/hpc-devsecops/hpc/asan-cam.pbs
+qsub ~/hpc-devsecops/hpc/asan-cam.pbs             # fill the TODOs for your case
 ```
 
 `hpc/asan-cam.pbs` injects `-fsanitize=address` into FFLAGS/CFLAGS/**LDFLAGS**,
 builds a tiny CAM case, and runs it with MPI-aware `ASAN_OPTIONS`
-(`detect_leaks=0:halt_on_error=0`). The account and CESM checkout are explicit
-submission parameters; compset/resolution and module adjustments remain
-site/version-specific. Why not the fast gate? ASan is **dynamic** (must build + run
+(`detect_leaks=0:halt_on_error=0`) — the CIME `create_newcase` bits are TODOs for
+your CAM version. Why not the fast gate? ASan is **dynamic** (must build + run
 CAM with inputs) and ~2–3× slower, so it lives here, not in `git push`.
 
 > `-fanalyzer` (GCC static analyzer) was evaluated and dropped: it is GCC-only
@@ -128,7 +237,7 @@ CAM with inputs) and ~2–3× slower, so it lives here, not in `git push`.
 ```bash
 # Clone into ~/hpc-devsecops so all the default paths (venv,
 # ~/.config/hpc-devsecops.env, ~/audits/hpc-devsecops) resolve with no extra config.
-git clone git@github.com:a85tract/CESM-CC-Test.git ~/hpc-devsecops
+git clone git@github.com:a85tract/hpc-devsecops.git ~/hpc-devsecops
 # Cloned somewhere else? point the toolkit at it:
 #   export HPC_DEVSECOPS_HOME=/path/to/your/checkout
 ```
@@ -154,13 +263,11 @@ git clone git@github.com:a85tract/CESM-CC-Test.git ~/hpc-devsecops
 | `--worktree` | audit all uncommitted changes (`git diff HEAD`) |
 | `--vs-remote` | audit commits not yet pushed (default when the branch has an upstream) |
 | `--base REF` | base ref for `--vs-remote` (default: the branch upstream) |
-| `--range RANGE` | audit an explicit Git revision range; used internally by the hook |
 | `--block` | exit non-zero on any secret / Critical CVE / high AI finding |
 | `--no-ai` | skip the AI code audit |
 
-Gitleaks and the AI audit use the selected patch/range. SBOM/CVE analysis
-describes the resulting full repository state and is labelled that way in the
-summary; it may therefore include pre-existing dependency findings.
+`--vs-remote` (new commits only) is the quietest mode — it won't re-flag
+pre-existing findings. `--worktree` scans everything and is the noisiest.
 
 ## Automatic pre-push gate
 
@@ -169,11 +276,8 @@ summary; it may therefore include pre-existing dependency findings.
 ```
 
 Installs a symlinked `pre-push` hook so `git push` from that repo runs
-hpc-devsecops first and **blocks** the push on findings or incomplete scans. The
-hook reads Git's actual local/remote SHA pairs, including new branches and
-multi-ref pushes. It refuses to replace an unrelated existing hook unless
-`install-hooks.sh --force` is used. Emergency bypass: `git push --no-verify`.
-Uninstall: `rm <repo>/.git/hooks/pre-push`.
+hpc-devsecops first and **blocks** the push on findings. Emergency bypass:
+`git push --no-verify`. Uninstall: `rm <repo>/.git/hooks/pre-push`.
 
 ## Output
 
@@ -184,14 +288,8 @@ pr.diff            gitleaks.sarif     grype.json     sbom.spdx.json
 ai-audit.sarif     ai-audit-report.md summary.txt
 ```
 
-Nothing is written under `/glade/work`. Reports use a timestamp plus PID to
-avoid collisions. Exit codes form a stable contract:
-
-| Exit | Meaning |
-|---:|---|
-| `0` | Completed; no blocking findings (or report-only mode) |
-| `1` | Findings detected while `--block` is active |
-| `2` | Usage, environment, scanner, or output-validation error |
+Nothing is written under `/glade/work`. Exit code is `0` unless `--block` is set
+and an issue is found (then `1`).
 
 ## Notes
 
@@ -201,5 +299,23 @@ avoid collisions. Exit codes form a stable contract:
   `ai_audit.py` at a local vLLM endpoint for a fully offline gate.
 - The same three static binaries (gitleaks, syft, grype) run in CI and on HPC;
   the only HPC-specific step is pre-staging the grype DB for offline use.
-- Run `tests/run.sh` for the local fake-scanner integration suite. CI additionally
-  runs `bash -n` and ShellCheck.
+
+---
+
+# Who owns what
+
+| Area | Owner |
+|---|---|
+| Correctness framework — schema, structure, contracts | this branch |
+| Correctness implementation — comparators, manifest builder, verifier, benchmarks | Qinrun |
+| Cyber half — `tools/`, `hooks/`, `hpc/`, and the product-repo config | Chien-Wei |
+
+`docs/VALIDATION-ARCHITECTURE.md` §8 tracks the open decisions. Two of them need
+a person, not more code:
+
+- **D4** — the Pipeline 2 statistical acceptance vocabulary. Blocks
+  `compare_stats.py` only; the bitwise path is unaffected.
+- **D6** — should an evidence package also record the Cyber gate's verdict for
+  the same commit? It would make one record answer both questions, but it puts a
+  contract on the gate's output, so it needs agreement across both halves rather
+  than a decision from one.

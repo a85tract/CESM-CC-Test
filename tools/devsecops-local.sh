@@ -8,13 +8,14 @@
 #   --base REF     base ref for --vs-remote
 #   --range RANGE  audit an explicit Git revision range (used by pre-push)
 #   --block        fail on findings and fail closed on scanner errors
+#   --require-complete  block when any configured scan did not run (even without --block)
 #   --no-ai        explicitly disable the optional AI audit
 #   -h, --help     show this help
 
 set -uo pipefail
 
 usage() {
-  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 die() { echo "hpc-devsecops: $*" >&2; exit 2; }
@@ -23,6 +24,7 @@ MODE=""
 BASE=""
 RANGE=""
 BLOCK=0
+REQUIRE_COMPLETE=0
 DO_AI=1
 REPO=""
 
@@ -42,6 +44,7 @@ while [ $# -gt 0 ]; do
       MODE="range"; RANGE="$2"; shift
       ;;
     --block) BLOCK=1 ;;
+    --require-complete) REQUIRE_COMPLETE=1 ;;
     --no-ai) DO_AI=0 ;;
     -h|--help) usage; exit 0 ;;
     -*) die "unknown option: $1" ;;
@@ -199,10 +202,48 @@ OVERALL="passed"
   echo "ai_state=$AI_STATE ai_high=$AI_HIGH"
 } > "$OUT/summary.txt"
 
+# Machine-readable mirror of summary.txt — one JSON object CI or another tool can
+# read. Status is PASS / FINDINGS / INCOMPLETE, mirroring the exit contract below.
+STATUS="PASS"
+[ "$OVERALL" = "findings" ] && STATUS="FINDINGS"
+[ "$OVERALL" = "incomplete" ] && STATUS="INCOMPLETE"
+HEAD_SHA="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo unknown)"
+STATUS="$STATUS" REPO_NAME="$REPO_NAME" MODE="$MODE" BASEREF="${BASE:-}" RANGEREF="${RANGE:-}" \
+DIFF_LINES="$DIFF_LINES" HEAD_SHA="$HEAD_SHA" TS="$TS" \
+GL_STATE="$GL_STATE" SECRETS="$SECRETS" \
+CVE_STATE="$CVE_STATE" CVE_CRIT="$CVE_CRIT" CVE_HIGH="$CVE_HIGH" \
+AI_STATE="$AI_STATE" AI_HIGH="$AI_HIGH" \
+python3 - "$OUT/summary.json" <<'PY' 2>/dev/null || echo "  (could not write summary.json)" >&2
+import json, os, sys
+def num(v):
+    try: return int(v)
+    except (TypeError, ValueError): return None
+doc = {
+    "tool": "hpc-devsecops",
+    "status": os.environ.get("STATUS", "INCOMPLETE"),
+    "repo": os.environ.get("REPO_NAME", ""),
+    "commit": os.environ.get("HEAD_SHA", "unknown"),
+    "mode": os.environ.get("MODE", ""),
+    "base": os.environ.get("BASEREF") or None,
+    "range": os.environ.get("RANGEREF") or None,
+    "diff_lines": num(os.environ.get("DIFF_LINES")),
+    "timestamp": os.environ.get("TS", ""),
+    "scans": {
+        "secrets":  {"state": os.environ.get("GL_STATE", ""),  "findings": num(os.environ.get("SECRETS"))},
+        "cve":      {"state": os.environ.get("CVE_STATE", ""), "critical": num(os.environ.get("CVE_CRIT")),
+                     "high": num(os.environ.get("CVE_HIGH")), "scope": "full-repository"},
+        "ai_audit": {"state": os.environ.get("AI_STATE", ""),  "high": num(os.environ.get("AI_HIGH"))},
+    },
+}
+with open(sys.argv[1], "w") as fh:
+    json.dump(doc, fh, indent=2)
+    fh.write("\n")
+PY
+
 echo
 if [ "$ERRORS" = 1 ]; then
   echo "INCOMPLETE: one or more configured/required checks did not complete"
-  [ "$BLOCK" = 1 ] && exit 2
+  { [ "$BLOCK" = 1 ] || [ "$REQUIRE_COMPLETE" = 1 ]; } && exit 2
 elif [ "$FINDINGS" = 1 ]; then
   echo "FINDINGS: secrets=$SECRETS critical_cves=$CVE_CRIT ai_high=$AI_HIGH"
   [ "$BLOCK" = 1 ] && exit 1

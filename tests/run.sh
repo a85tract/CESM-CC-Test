@@ -28,6 +28,7 @@ if [[ "$help" == *"set -uo pipefail"* ]]; then bad "help contains implementation
 expect_rc "--base requires an argument" 2 "$ROOT/tools/devsecops-local.sh" --base
 expect_rc "blocking mode fails closed when tools are missing" 2 env PATH=/usr/bin:/bin "$ROOT/tools/devsecops-local.sh" --worktree --no-ai --block "$ROOT"
 expect_rc "report-only mode reports incomplete without blocking" 0 env PATH=/usr/bin:/bin "$ROOT/tools/devsecops-local.sh" --worktree --no-ai "$ROOT"
+expect_rc "--require-complete blocks an incomplete gate without --block" 2 env PATH=/usr/bin:/bin "$ROOT/tools/devsecops-local.sh" --worktree --no-ai --require-complete "$ROOT"
 
 make_fakes() {
   behavior="$1"
@@ -47,6 +48,12 @@ make_fakes() {
 
 make_fakes pass
 expect_rc "all successful scanners allow blocking mode" 0 env PATH="$TMP/bin:/usr/bin:/bin" "$ROOT/tools/devsecops-local.sh" --worktree --no-ai --block "$ROOT"
+# summary.json mirrors the run in machine-readable form
+sumrun="$TMP/audits-sum"; rm -rf "$sumrun"
+env PATH="$TMP/bin:/usr/bin:/bin" HPC_DEVSECOPS_AUDIT_ROOT="$sumrun" \
+  "$ROOT/tools/devsecops-local.sh" --worktree --no-ai "$ROOT" >/dev/null 2>&1
+sumjson="$(find "$sumrun" -name summary.json 2>/dev/null | head -1)"
+if [ -n "$sumjson" ] && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["status"]=="PASS", d["status"]; assert set(d["scans"])=={"secrets","cve","ai_audit"}' "$sumjson" 2>/dev/null; then ok "summary.json is emitted and valid"; else bad "summary.json is emitted and valid"; fi
 make_fakes finding
 expect_rc "secret finding blocks with exit 1" 1 env PATH="$TMP/bin:/usr/bin:/bin" "$ROOT/tools/devsecops-local.sh" --worktree --no-ai --block "$ROOT"
 make_fakes error

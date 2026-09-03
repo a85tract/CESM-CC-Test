@@ -148,11 +148,16 @@ CESM-CC-Test/
 │   └── examples/
 │       └── example-bitwise.manifest.json
 │
-├── correctness/                    # NEW — the Correctness half
+├── correctness/                    # the Correctness half (steps 2-3 DONE)
 │   ├── compare_runpair.py          # migrated from PyCAM5, plus --json
 │   ├── compare_stats.py            # Pipeline 2 statistical comparator (new)
 │   ├── make_manifest.py            # comparator output + environment probe -> manifest
-│   └── verify_evidence.py          # schema + self-consistency check; the CI entry point
+│   ├── verify_evidence.py          # schema + self-consistency check; the CI entry point
+│   └── dataio.py                   # shared input adapters; not a command-line tool
+│
+├── tests/
+│   ├── run.sh                      # Cyber half, integration
+│   └── test_correctness.py         # Correctness half, synthetic inputs, no NetCDF needed
 │
 ├── tools/  hpc/  hooks/            # Cyber half — see §11
 │   ├── devsecops-local.sh          #   per-scan state + summary.json (updated)
@@ -296,8 +301,32 @@ The sketch settles three of the five decisions carried over from the earlier dra
 | D1 | Repository identity: CC-Test (CAM validation hub) vs `hpc-devsecops` (generic tool) | **Settled by the sketch** — CC-Test is the central validation infrastructure. `README.md` is rewritten around two halves; the Cyber half is annotated "generic, usable standalone", keeping the current install instructions valid. |
 | D2 | Version source for `evidence/<product>/<version>/` — all three repos have zero tags | **Settled in principle** — the sketch's `v0.2.0` layout means version directories are release tags, so products start tagging. Proposed bridge until a product cuts its first tag: `unreleased-<commit[:8]>`, with `artifact.commit` always authoritative. |
 | D3 | How evidence reaches CC-Test from the HPC side | **Settled** — manual pull request. Derecho compute nodes generally have no outbound network, so automated push is not available. |
-| D4 | Pipeline 2 statistical criteria | **Open — needs your input.** "1.24e-6 rel diff" and "within ensemble spread" must become executable: tolerance value and norm, the compared variable set, ensemble member count, and the spread test. No tool exists; `compare_stats.py` is net new work and cannot be specified without these definitions. |
+| D4 | Pipeline 2 statistical criteria | **Still open — needs your input.** "1.24e-6 rel diff" and "within ensemble spread" must become executable: tolerance value and norm, the compared variable set, ensemble member count, and the spread test. `compare_stats.py` now exists and evaluates the two rule kinds the schema names, but it did **not** settle D4: it states the reading it uses for each undecided point (§8.1), the schema keeps its `provisional` marker, and `verify_evidence.py` still rejects any manifest that files evidence against it. |
 | D5 | Cyber-half config gap: no product repo had `.gitleaks.toml`, `.vex/openvex.json`, or `ai_audit.py`, so those checks skipped silently | **Settled — in scope, and the CC-Test side is done.** `ai_audit.py` did not exist anywhere, so it was written rather than merely installed. Templates for all three now live in `templates/`, `tools/install-config.sh` installs them into a target repo, and the evidence manifest records the Cyber verdict (§6). Installing into the six product repos is step 10. |
+
+### 8.1 D4 readings decided by implementation on 2026-09-03, revisit if wrong
+
+Writing `compare_stats.py` meant choosing a meaning for every point D4 leaves open. The
+alternative was a tool that picked one silently. Each choice below is the most conservative
+reading available — the one least likely to call something a PASS that a stricter reading
+would fail — and each is recorded here so that settling D4 is a matter of confirming or
+overturning a written decision rather than reverse-engineering the code. They are also
+stated in `correctness/compare_stats.py`'s docstring, beside the line that implements them.
+
+| Open point | Reading taken | Why this one |
+|---|---|---|
+| Which variables are compared | Exactly those the rule names; every one must be present in both inputs and every one must pass. An absent variable is ERROR | An aggregate, or a silently skipped variable, would let a PASS cover fewer variables than it claims |
+| What the tolerance applies to | The normwise ratio per variable: `‖cand − ref‖ / ‖ref‖` in the declared norm, over the whole array | Matches how the dashboard figures read. The elementwise alternative `max │d_i│/│ref_i│` is stricter but is dominated by near-zero reference elements |
+| `l2` vs `rmse` | Both computed; as ratios they are arithmetically the same number, the element count cancels | Kept distinct because the rule records which norm was declared and the reported absolute norm differs |
+| Reference norm is zero | The rule passes only on exact equality; no epsilon is added to the denominator | An epsilon turns "nothing to compare against" into a pass |
+| Region / time mean | Whole field, every time level, no subsetting and no averaging | Averaging is what lets a large local error hide |
+| Non-finite values | Same non-finite mask on both sides: those elements are excluded from the norms and the count is reported. Different masks: FAIL | CAM fill values are legitimate; a mask that moved is a real difference between the runs |
+| Ensemble member count | Fewer members than the rule requires is ERROR | A smaller ensemble has a smaller spread, so accepting one silently widens nothing and hides everything |
+| "Within spread" | Elementwise, and the candidate must be inside the band at **every** element. `stddev` = mean ± m·σ with ddof 0 (the tighter estimate); `minmax` = envelope midpoint ± m·half-width; `iqr` = median ± m·(IQR/2). A zero-width band admits only exact equality | The strictest of the readings on offer; `<=` and `>=` are taken literally, with no tolerance added to the band edges |
+
+None of this removes `"status": "provisional"` from `schemas/acceptance.v1.json`. Removing
+that marker is the signal that D4 has been agreed by people, and it is not a side effect of
+having written the tool.
 
 ---
 
@@ -308,13 +337,13 @@ Ordered so each step is independently reviewable.
 | # | Step | Lands in | Depends on |
 |---|---|---|---|
 | 1 | **DONE** — `evidence-manifest.v1.json` and `acceptance.v1.json`, bitwise vocabulary complete, statistical present but provisional and rejected by the verifier. Plus `schemas/README.md`, a format example, and `schemas/test_schemas.py` (3 positive + 12 negative assertions, all passing) | CC-Test `schemas/` | D2 |
-| 2 | Move `compare_cesm_runpair.py` to `correctness/compare_runpair.py`; add `--json`; rename `native`/`codon` arguments to neutral `--reference-run-dir` / `--candidate-run-dir`, keeping old names as aliases | CC-Test | 1 |
-| 3 | Write `make_manifest.py` (comparator JSON + environment probe → manifest) and `verify_evidence.py` | CC-Test | 1, 2 |
+| 2 | **DONE** — `correctness/compare_runpair.py` carries the PyCAM5 comparator with `--json`, neutral `--reference-run-dir` / `--candidate-run-dir` (old names kept as hidden aliases), and the three-valued exit code. Removing the copy from PyCAM5 is still to do | CC-Test | 1 |
+| 3 | **DONE** — `make_manifest.py` (comparator JSON + benchmark + environment probe + the Cyber gate's `summary.json` → manifest) and `verify_evidence.py` (schema + all 11 error invariants and 6 warnings from `schemas/README.md`). `tests/test_correctness.py` covers pass / findings / incomplete for each tool and the make_manifest → verify_evidence round trip | CC-Test | 1, 2 |
 | 4 | Backfill the 2026-06-16 PI/MCO results from `PyCAM5/doc/internal_validation.md` as the first evidence package | CC-Test `evidence/pycam5/` | 3 |
 | 5 | Write `benchmarks/pycam5/{pi,mco}-6month-allcodon.yaml`, extracting case definitions from `env_allcodon_675.sh` | CC-Test | 4 |
 | 6 | Write `verify-evidence.yml` and `validation-callable.yml` | CC-Test `.github/` | 3 |
 | 7 | Add `VALIDATION.md` + `validation.yml` to PyCAM5 | PyCAM5 | 6 |
-| 8 | Define the statistical acceptance vocabulary, write `compare_stats.py`, extend to `jax-kernels` / `numba-kernels` / `pyphys-bridge` | CC-Test + product repos | 7, D4 |
+| 8 | **Half done** — `compare_stats.py` is written and evaluates both rule kinds, under the readings recorded in §8.1. Still needed: agreement on D4 (which turns those readings from a written default into the criterion), removing the schema's `provisional` marker, and extending to `jax-kernels` / `numba-kernels` / `pyphys-bridge` | CC-Test + product repos | 7, D4 |
 | 9 | Extend to `freeCAM` (bitwise; the CAM-SIMA oracle gate becomes a benchmark case) | CC-Test + freeCAM | 7 |
 | 10 | **CC-Test side DONE** — `ai_audit.py` written, all three templates in `templates/`, `tools/install-config.sh` installs them, runner reports per-scan state. Remaining: run the installer against the six product repos and commit the result | Product repos | D5 |
 | 11 | Rewrite CC-Test `README.md` around the two halves; update the overview's "Correctness later" line | CC-Test + overview | 8, 9 |

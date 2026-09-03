@@ -14,8 +14,10 @@ migration step 4, a backfill of the 2026-06-16 PyCAM5 PI and MCO runs.
 ## Rules
 
 **Append-only.** Once a version's manifest lands it is immutable. A re-run produces a new
-version directory; it never edits an old one. `verify_evidence.py` enforces this against
-the base branch — a pull request that modifies an existing manifest fails.
+version directory; it never edits an old one. `verify_evidence.py --base-ref REF` enforces
+this against the base branch — a pull request that modifies an existing manifest fails.
+Without `--base-ref` there is no base branch to diff against, so the check is reported as
+skipped rather than silently passed.
 
 **`<version>` is a release tag**, e.g. `v0.2.0`. No product repository has cut one yet, so
 until then use the bridge form `unreleased-<commit[:8]>`; `artifact.commit` is

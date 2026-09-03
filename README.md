@@ -13,7 +13,7 @@ commit, rather than trusting two separate green checkmarks.
 
 | Half | What it does | Status |
 |---|---|---|
-| [Correctness](#correctness--does-the-port-compute-the-right-answer) | Compares a candidate run against a reference run and files the result as evidence | **Framework only.** Schema and structure in place; the tools are stubs |
+| [Correctness](#correctness--does-the-port-compute-the-right-answer) | Compares a candidate run against a reference run and files the result as evidence | **Tools in place.** Schema, comparators, manifest builder and verifier all implemented; no benchmark or evidence package filed yet |
 | [Cyber](#cyber--the-hpc-devsecops-gate) | Secret scan, SBOM + CVE + VEX, AI code audit, AddressSanitizer | **In use.** Verified on Derecho |
 
 The Cyber half is also usable standalone against any git repository — it does
@@ -23,9 +23,10 @@ not depend on anything CESM-specific.
 
 ```
 schemas/       what a validation evidence package is — JSON Schema + self-test
-correctness/   the four tools that produce and check one — stubs today
-benchmarks/    per-product case definitions and acceptance criteria
-evidence/      the append-only index of validated versions
+correctness/   the four tools that produce and check one, plus their shared input adapter
+benchmarks/    per-product case definitions and acceptance criteria — empty so far
+evidence/      the append-only index of validated versions — empty so far
+tests/         run.sh (Cyber, integration) and test_correctness.py (Correctness, pytest)
 docs/          VALIDATION-ARCHITECTURE.md — the plan, ownership, open decisions
 
 tools/         the Cyber gate: devsecops-local.sh, asan.sh, install-hooks.sh, install-config.sh
@@ -95,26 +96,35 @@ against them until the tolerance, norm, variable set, and spread test are agreed
 
 ## Status and where to start
 
-Everything under `correctness/` is a **stub**. Each states its inputs, outputs,
-and the invariants it must enforce, then raises `NotImplementedError` — a stub
-that returned an empty result would let a caller file a *passing* evidence
-package for a comparison that never ran, which is the failure mode the explicit
-gating flags and `ERROR` status exist to prevent.
+The four tools under `correctness/` are implemented. What is still missing is
+data, not code: no benchmark file has been written and no evidence package has
+been filed.
 
-| Module | Step | Blocked on |
+| Module | Step | State |
 |---|---|---|
-| `compare_runpair.py` | 2 | nothing — port from `PyCAM5/scripts/validation/compare_cesm_runpair.py`, add `--json` |
-| `make_manifest.py` | 3 | `compare_runpair.py` |
-| `verify_evidence.py` | 3 | nothing — the invariant list is in `schemas/README.md` |
-| `compare_stats.py` | 8 | decision D4 |
+| `compare_runpair.py` | 2 | done — the PyCAM5 comparator with `--json`, neutral run-directory options, and the three-valued exit code |
+| `make_manifest.py` | 3 | done — comparator JSON + benchmark + environment probe + the Cyber gate's `summary.json` → a manifest |
+| `verify_evidence.py` | 3 | done — schema plus all 11 error invariants and 6 warnings from `schemas/README.md` |
+| `compare_stats.py` | 8 | written, and decision **D4 is still open**. It evaluates both rule kinds under the readings recorded in `docs/VALIDATION-ARCHITECTURE.md` §8.1; the schema keeps its `provisional` marker and the verifier still rejects statistical evidence |
+| benchmarks, first evidence package | 5, 4 | **not started** — this is what to do next |
 
-Read `correctness/README.md` for how the four compose and the conventions they
-share, then `docs/VALIDATION-ARCHITECTURE.md` for the migration order, the
-open decisions, and who owns what. `schemas/test_schemas.py` is runnable:
+Each tool exits `0` PASS, `1` FAIL, `2` ERROR, and `2` genuinely means *nothing
+was compared*: a missing file, a mismatched file set, an unreadable format, an
+acceptance rule with no measurement behind it. That distinction is the point —
+a stub that returned an empty result, or a tool that reported an absent
+comparison as a clean one, would let a caller file a *passing* evidence package
+for a comparison that never ran, which is the failure mode the explicit gating
+flags and `ERROR` status exist to prevent.
+
+Read `correctness/README.md` for how the four compose, what they depend on, and
+the conventions they share, then `docs/VALIDATION-ARCHITECTURE.md` for the
+migration order, the open decisions, and who owns what. Both test suites are
+runnable, and neither needs a NetCDF stack:
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install jsonschema
-.venv/bin/python schemas/test_schemas.py
+python3 -m venv .venv && .venv/bin/pip install numpy jsonschema pyyaml pytest
+.venv/bin/python schemas/test_schemas.py          # schema self-test
+.venv/bin/python -m pytest tests/test_correctness.py
 ```
 
 ---
@@ -328,8 +338,12 @@ under `--block` / `--require-complete`, or a usage/environment error.
 `docs/VALIDATION-ARCHITECTURE.md` §8 tracks the open decisions. One still needs a
 person, not more code:
 
-- **D4** — the Pipeline 2 statistical acceptance vocabulary. Blocks
-  `compare_stats.py` only; the bitwise path is unaffected.
+- **D4** — the Pipeline 2 statistical acceptance vocabulary. `compare_stats.py`
+  is written, but it did not settle D4: it states the reading it takes for each
+  undecided point (`docs/VALIDATION-ARCHITECTURE.md` §8.1) and those readings
+  need confirming or overturning by a person. Until then the schema keeps its
+  `provisional` marker and no Pipeline 2 evidence is accepted. The bitwise path
+  is unaffected.
 
 **D6** — whether an evidence package also records the Cyber gate's verdict for the
 same commit — is **resolved: yes.** The manifest carries a required `security`

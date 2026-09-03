@@ -25,6 +25,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+# verify_evidence validates against the schemas with jsonschema, the one
+# dependency the README's install line names; without it the verifier
+# answers 2 ("nothing was verified") and every exit-code assertion below
+# would read as a defect in the tools rather than in the environment.
+pytest.importorskip("jsonschema", reason="the Correctness half needs jsonschema installed")
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "correctness"))
 

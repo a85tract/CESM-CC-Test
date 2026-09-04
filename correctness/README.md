@@ -20,8 +20,14 @@ The comparators run on HPC where the output lives. `verify_evidence.py` runs in 
 committed manifest, in seconds. Nothing in this directory ever executes a model run — see
 `../docs/VALIDATION-ARCHITECTURE.md` §4 for why that split exists.
 
-`dataio.py` is the fifth file and is not a tool: it is the input adapter both comparators
-share, and the one place that decides how a file is read and dumped.
+`dataio.py` is not a tool: it is the input adapter both comparators share, and the one
+place that decides how a file is read and dumped.
+
+`check_validation_md.py` is the fifth tool and belongs to the other side of the split:
+it runs against a *product* checkout, not against model output, and it is what
+`../.github/workflows/validation-callable.yml` calls to ask whether a product's
+`VALIDATION.md` still matches the evidence produced here — and whether the commit it
+names is still that repository's HEAD.
 
 ## Status
 
@@ -30,6 +36,7 @@ share, and the one place that decides how a file is read and dumped.
 | `compare_runpair.py` | 2 | **implemented** |
 | `make_manifest.py` | 3 | **implemented** |
 | `verify_evidence.py` | 3 | **implemented** — all 11 error invariants and 6 warnings from `../schemas/README.md` |
+| `check_validation_md.py` | 6 | **implemented** — the product side of layer 2: the claim in a product's `VALIDATION.md` against the manifest, plus commit drift |
 | `compare_stats.py` | 8 | **implemented, but decision D4 is still open.** It evaluates the rule kinds the schema names, under the readings recorded in `../docs/VALIDATION-ARCHITECTURE.md` §8.1. The schema keeps its `provisional` marker and `verify_evidence.py` still rejects statistical evidence |
 
 Still to do here: migration step 5 (write the `benchmarks/<product>/*.yaml` files) and
@@ -88,7 +95,7 @@ Standard library, plus:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install numpy jsonschema pyyaml pytest
-.venv/bin/python -m pytest tests/test_correctness.py
+.venv/bin/python -m pytest tests/
 .venv/bin/python schemas/test_schemas.py
 ```
 

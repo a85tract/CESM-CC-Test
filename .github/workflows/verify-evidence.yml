@@ -1,0 +1,60 @@
+name: Verify evidence
+
+# Layer 2 of adjustment A (docs/VALIDATION-ARCHITECTURE.md §4). A GitHub runner
+# cannot produce evidence — that needs Derecho, the ifx toolchain, CESM input data
+# and hours of compute. It can verify evidence in seconds, on every change, and
+# that is the whole of what CI can honestly claim about a validation run.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Invariant 7 resolves cc_test.commit in this repository and invariant 8
+          # diffs evidence/ against the base branch. Neither works on a shallow clone.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install the verifier's dependencies
+        run: pip install jsonschema referencing
+      # verify_evidence.py already exits 2 rather than passing when jsonschema is
+      # absent. Checking here as well keeps the reason a single line in the log.
+      - name: Dependencies must be present, not skipped over
+        run: python -c "import jsonschema, referencing"
+      - name: Verify every manifest under evidence/
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: |
+          shopt -s nullglob globstar
+          manifests=(evidence/**/manifest.json)
+          if [ ${#manifests[@]} -eq 0 ]; then
+            # Not a pass, and it must not be read as one. evidence/ is empty because
+            # migration step 4 has not landed. The day the first package lands this
+            # job starts gating on its own, with nobody having to switch it on.
+            echo "::warning::evidence/ holds no manifest (migration step 4 is not done). Nothing was verified."
+            {
+              echo '### Verify evidence'
+              echo
+              echo 'No evidence package exists yet — migration step 4. **Nothing was verified.**'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # --strict is deliberately absent. Invariant 4 (artifact.commit resolves in
+          # the product repository) can only run where the product is checked out,
+          # which is validation-callable.yml and not this job. Under --strict its
+          # unavoidable SKIP would fail every run, and a check that always fails
+          # stops being read.
+          if [ -n "$BASE_REF" ]; then
+            python correctness/verify_evidence.py --base-ref "$BASE_REF"
+          else
+            python correctness/verify_evidence.py
+          fi

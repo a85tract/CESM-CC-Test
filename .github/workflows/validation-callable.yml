@@ -1,0 +1,100 @@
+name: Validation status
+
+# Reusable — called by each product repository (migration step 7):
+#
+#   jobs:
+#     validation:
+#       uses: a85tract/CESM-CC-Test/.github/workflows/validation-callable.yml@main
+#       with:
+#         product: pycam5
+#
+# This is the product side of layer 2. verify-evidence.yml asks whether an evidence
+# package is internally sound; this asks whether the product's own VALIDATION.md
+# still matches it, and whether the commit it names is still the code. The failure
+# it exists to catch is a VALIDATION.md that says PASS and points at a commit that
+# stopped being HEAD months ago — see docs/VALIDATION-ARCHITECTURE.md §4 and §7.
+
+on:
+  workflow_call:
+    inputs:
+      product:
+        description: 'Directory name under CC-Test evidence/, e.g. pycam5'
+        required: true
+        type: string
+      cc-test-ref:
+        description: 'Ref of CESM-CC-Test to check against'
+        required: false
+        default: main
+        type: string
+      validation-file:
+        description: "Path to the product's VALIDATION.md, relative to its root"
+        required: false
+        default: VALIDATION.md
+        type: string
+      strict:
+        description: 'Fail on warnings — undeclared drift, a missing evidence link'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the product
+        uses: actions/checkout@v4
+        with:
+          path: product
+          # The drift count is the distance from the validated commit to HEAD; a
+          # shallow clone measures the wrong number, or cannot measure one at all.
+          fetch-depth: 0
+      - name: Check out CC-Test
+        uses: actions/checkout@v4
+        with:
+          repository: a85tract/CESM-CC-Test
+          ref: ${{ inputs.cc-test-ref }}
+          path: cc-test
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install the verifier's dependencies
+        run: pip install jsonschema referencing
+      - name: Dependencies must be present, not skipped over
+        run: python -c "import jsonschema, referencing"
+      # Inputs reach the shell through the environment, never through ${{ }}
+      # interpolation into the script body: a product repository controls these
+      # strings, and interpolation would let one of them run commands here.
+      - name: The claim matches the evidence
+        env:
+          PRODUCT: ${{ inputs.product }}
+          VALIDATION_FILE: ${{ inputs.validation-file }}
+          STRICT: ${{ inputs.strict }}
+        run: |
+          args=(--validation-file "product/$VALIDATION_FILE"
+                --repo product
+                --evidence-root cc-test/evidence
+                --product "$PRODUCT")
+          if [ "$STRICT" = "true" ]; then args+=(--strict); fi
+          python cc-test/correctness/check_validation_md.py "${args[@]}"
+      - name: The evidence package itself verifies
+        env:
+          PRODUCT: ${{ inputs.product }}
+        run: |
+          shopt -s nullglob globstar
+          manifests=(cc-test/evidence/"$PRODUCT"/**/manifest.json)
+          if [ ${#manifests[@]} -eq 0 ]; then
+            # check_validation_md.py has already exited 2 in this case. Reaching
+            # here means the claim was checked against something that has since
+            # gone; report it rather than passing on an empty glob.
+            echo "::error::no manifest under cc-test/evidence/$PRODUCT — nothing to verify"
+            exit 2
+          fi
+          # Invariant 4 needs the product checkout, and here it exists, so name it:
+          # artifact.name is the manifest's own word for this repository.
+          name=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["artifact"]["name"])' "${manifests[0]}")
+          python cc-test/correctness/verify_evidence.py "${manifests[@]}" \
+            --artifact-checkout "$name=product"

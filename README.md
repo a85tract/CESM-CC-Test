@@ -26,7 +26,8 @@ schemas/       what a validation evidence package is — JSON Schema + self-test
 correctness/   the four tools that produce and check one, plus their shared input adapter
 benchmarks/    per-product case definitions and acceptance criteria — empty so far
 evidence/      the append-only index of validated versions — empty so far
-tests/         run.sh (Cyber, integration) and test_correctness.py (Correctness, pytest)
+tests/         run.sh (Cyber, integration); test_correctness.py and
+               test_validation_md.py (Correctness, pytest)
 docs/          VALIDATION-ARCHITECTURE.md — the plan, ownership, open decisions
 
 tools/         the Cyber gate: devsecops-local.sh, asan.sh, install-hooks.sh, install-config.sh

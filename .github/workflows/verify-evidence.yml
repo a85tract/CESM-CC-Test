@@ -13,7 +13,40 @@ permissions:
   contents: read
 
 jobs:
+  # Split in two so that "there is nothing to verify" cannot be reported as a
+  # passing verification. evidence/ is empty until migration step 4 lands, and a
+  # green check against an empty directory is exactly the false-clean shape §11
+  # records against the Cyber gate: the check would say the same thing whether
+  # the evidence was sound or absent. A skipped job says the other thing.
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      has-evidence: ${{ steps.look.outputs.has-evidence }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: look
+        run: |
+          shopt -s nullglob globstar
+          manifests=(evidence/**/manifest.json)
+          if [ ${#manifests[@]} -eq 0 ]; then
+            echo "has-evidence=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::evidence/ holds no manifest (migration step 4 is not done). The verify job is skipped, not passed."
+            {
+              echo '### Verify evidence'
+              echo
+              echo 'No evidence package exists yet — migration step 4.'
+              echo 'The verify job is **skipped**, so no check reports success over an empty directory.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "has-evidence=true" >> "$GITHUB_OUTPUT"
+            echo "found ${#manifests[@]} manifest(s)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   verify:
+    needs: detect
+    # Skipped, not passed, while there is nothing to verify. The first evidence
+    # package to land turns this gate on by itself.
+    if: needs.detect.outputs.has-evidence == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,20 +67,6 @@ jobs:
         env:
           BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
         run: |
-          shopt -s nullglob globstar
-          manifests=(evidence/**/manifest.json)
-          if [ ${#manifests[@]} -eq 0 ]; then
-            # Not a pass, and it must not be read as one. evidence/ is empty because
-            # migration step 4 has not landed. The day the first package lands this
-            # job starts gating on its own, with nobody having to switch it on.
-            echo "::warning::evidence/ holds no manifest (migration step 4 is not done). Nothing was verified."
-            {
-              echo '### Verify evidence'
-              echo
-              echo 'No evidence package exists yet — migration step 4. **Nothing was verified.**'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
           # --strict is deliberately absent. Invariant 4 (artifact.commit resolves in
           # the product repository) can only run where the product is checked out,
           # which is validation-callable.yml and not this job. Under --strict its

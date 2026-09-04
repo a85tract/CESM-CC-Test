@@ -22,3 +22,23 @@ jobs:
         run: shellcheck tools/*.sh hooks/pre-push tests/*.sh
       - name: Integration tests
         run: tests/run.sh
+
+  correctness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install the Correctness half's dependencies
+        run: pip install numpy jsonschema referencing pyyaml pytest
+      # The suite skips itself when jsonschema is absent. That is right for a bare
+      # checkout and wrong here: a skipped suite reports green, and "not run" would
+      # again be indistinguishable from "ran, found nothing" — the defect §11
+      # records against the Cyber gate. Fail on the import before pytest can skip.
+      - name: Dependencies must be present, not skipped over
+        run: python -c "import numpy, jsonschema, referencing, yaml"
+      - name: Correctness tests
+        run: python -m pytest tests/ -q -rs
+      - name: Schema assertions
+        run: python schemas/test_schemas.py

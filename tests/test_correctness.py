@@ -1296,3 +1296,24 @@ def test_the_filed_clubb_jax_package_verifies_and_is_indexed(capsys):
     out = capsys.readouterr().out
     assert "ERROR" not in out
     assert index_evidence.main(["--check"]) == 0
+
+
+def test_every_committed_benchmark_validates_against_the_acceptance_schema():
+    """A benchmark is the criterion an acceptance record is judged by. One that does not
+    validate would fail every manifest built from it, so it fails here first."""
+    yaml = pytest.importorskip("yaml", reason="benchmarks are YAML")
+    from jsonschema import Draft202012Validator
+    from referencing import Registry, Resource
+
+    acceptance = json.loads((ROOT / "schemas" / "acceptance.v1.json").read_text())
+    registry = Registry().with_resources([(acceptance["$id"], Resource.from_contents(acceptance))])
+    validator = Draft202012Validator(
+        {"$ref": acceptance["$id"] + "#/$defs/acceptance"}, registry=registry)
+
+    benchmarks = sorted(p for p in (ROOT / "benchmarks").glob("*/*.yaml"))
+    assert benchmarks, "no benchmark files found under benchmarks/<product>/"
+    for path in benchmarks:
+        document = yaml.safe_load(path.read_text())
+        assert document["id"] == path.stem, "%s: id %r is not the file stem" % (path, document["id"])
+        errors = [e.message for e in validator.iter_errors(document["acceptance"])]
+        assert not errors, "%s: %s" % (path.relative_to(ROOT), errors[:3])

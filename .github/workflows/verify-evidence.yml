@@ -1,0 +1,53 @@
+# Layer 2 of the validation architecture: verify the acceptance records this
+# repository holds. Nothing here runs a model or a comparison; that happens on
+# HPC or in a case repository, and what lands here is the record. This is the
+# part CI can check honestly, in seconds, on every pull request.
+#
+# The append-only rule (verify_evidence.py invariant 8) needs the base branch to
+# diff against, so on a pull request it is given origin/<base>. On a push to
+# main there is no base; the check reports itself as skipped, not passed.
+name: Verify evidence
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: cc_test.commit must resolve here (invariant 7), and
+          # the append-only check diffs against the base branch (invariant 8).
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the Correctness half's dependencies
+        run: python -m pip install --quiet numpy jsonschema referencing pyyaml pytest
+
+      - name: Schema self-test
+        run: python schemas/test_schemas.py
+
+      - name: Correctness suite
+        # Includes: every committed benchmark validates against the acceptance
+        # schema, and the filed records verify clean with a current index.
+        run: python -m pytest -q tests/test_correctness.py
+
+      - name: Verify every acceptance record
+        run: |
+          if [ -n "${{ github.base_ref }}" ]; then
+            python correctness/verify_evidence.py --base-ref "origin/${{ github.base_ref }}"
+          else
+            python correctness/verify_evidence.py
+          fi
+
+      - name: The index is generated from the records
+        run: python correctness/index_evidence.py --check

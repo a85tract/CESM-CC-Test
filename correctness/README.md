@@ -71,6 +71,12 @@ correctness/verify_evidence.py                       # every manifest under evid
 correctness/verify_evidence.py --base-ref origin/main --strict
 ```
 
+`--security-summary` takes the Cyber gate's `summary.json` from either producer:
+`tools/devsecops-local.sh`, or `recast run audit <root> --gate-summary PATH`, which writes the
+same shape plus `"schema": 1`. Both call the gate `PASS` when nothing blocking was found among
+the planes that ran; the schema's `PASS` means every plane ran, so a `PASS` with a plane in
+`not_configured`, `skipped` or `unavailable` is recorded as `INCOMPLETE` and a warning says so.
+
 For a `unit-differential` case the comparator is RecastEngine, and the "comparator JSON" is the
 summary the case repository commits. `make_manifest.py` reads its verdicts, decides which gate
 by the benchmark, and fingerprints the summary file into `outputs.files`:

@@ -17,7 +17,8 @@ Inputs
   --reference-model     baseline identity; --reference-commit, --reference-provenance
   --outputs-location    absolute path on HPC storage
   --outputs-retention   retention class and expected purge date
-  --security-summary    summary.json from tools/devsecops-local.sh
+  --security-summary    the Cyber gate's summary.json: from tools/devsecops-local.sh, or
+                        from `recast run audit ... --gate-summary` (same shape, plus `schema: 1`)
   --out PATH            where to write manifest.json
 
 Every value comes from the benchmark, the comparator, a probe, or an explicit
@@ -574,6 +575,23 @@ def security_block(args, artifact_commit: str, cc_test_commit: str,
             },
         },
     }
+    # The gate's own PASS means "nothing blocking among the checks that ran";
+    # hpc-devsecops does not count a plane that is not configured against it,
+    # and the engine's `recast run audit --gate-summary` keeps that reading.
+    # The schema's PASS is stricter: every plane ran and nothing blocking was
+    # found. The translation happens here, so the manifest says what the
+    # schema means and the gate keeps saying what it means.
+    planes = block["scans"]
+    all_ran = (planes["secrets"]["state"] == "scanned"
+               and planes["vulnerabilities"]["state"] == "scanned"
+               and planes["ai_audit"]["state"] == "reviewed")
+    if block["status"] == "PASS" and not all_ran:
+        block["status"] = "INCOMPLETE"
+        warnings.append(
+            "the Cyber gate reported PASS with a plane that did not run (states %s/%s/%s); "
+            "recorded as INCOMPLETE, which is what the schema calls that"
+            % (planes["secrets"]["state"], planes["vulnerabilities"]["state"],
+               planes["ai_audit"]["state"]))
     if artifact_repo is None:
         warnings.append(
             "no --artifact-repo: target_config and vex_applied recorded as false "
@@ -906,7 +924,8 @@ def parse_args(argv: Optional[List[str]] = None):
                         help="candidate output directory to fingerprint; repeatable")
     parser.add_argument("--assets-release")
     parser.add_argument("--security-summary", type=Path,
-                        help="summary.json from tools/devsecops-local.sh")
+                        help="the Cyber gate's summary.json, from tools/devsecops-local.sh or from "
+                             "`recast run audit ... --gate-summary` (same shape, plus schema: 1)")
     parser.add_argument("--security-gate", default="hpc-devsecops")
     parser.add_argument("--security-timestamp")
     parser.add_argument("--evidence-class", default="auto",

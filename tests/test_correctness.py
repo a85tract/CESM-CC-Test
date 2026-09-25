@@ -691,6 +691,68 @@ def test_security_summary_is_translated_and_a_commit_mismatch_is_caught(
     assert "is not artifact.commit" in capsys.readouterr().out
 
 
+def test_the_engine_gate_summary_is_read_like_the_scripts(workspace, tmp_path):
+    """`recast run audit --gate-summary` writes hpc-devsecops's summary.json shape plus
+    `schema: 1`; make_manifest reads it unchanged. A tool that was not on PATH is
+    `unavailable` there and `not_installed` here; the gate's name is whatever the
+    producer wrote."""
+    make_benchmark(workspace, "pi-6month")
+    case_json = run_pair(tmp_path, [1.0], [1.0])
+    summary = tmp_path / "summary.json"
+    summary.write_text(json.dumps({
+        "schema": 1, "tool": "recast audit", "status": "INCOMPLETE",
+        "repo": "PyCAM5", "commit": workspace["artifact_commit"],
+        "mode": "repository", "base": None, "range": None, "diff_lines": None,
+        "timestamp": "2026-09-25T00:00:00+00:00",
+        "scans": {
+            "secrets": {"state": "unavailable", "findings": 0},
+            "cve": {"state": "passed", "critical": 0, "high": 3, "scope": "full-repository"},
+            "ai_audit": {"state": "not_configured", "high": 0},
+        }}))
+
+    assert make_manifest.main(manifest_argv(workspace, case_json, [
+        "--security-summary", str(summary)])) == 0
+    path = (workspace["cc_test"] / "evidence" / "pycam5" / workspace["version"]
+            / "manifest.json")
+    security = json.loads(path.read_text())["security"]
+    assert security["gate"] == "recast audit"
+    assert security["status"] == "INCOMPLETE"
+    assert security["scanned_commit"] == workspace["artifact_commit"]
+    assert security["scans"]["secrets"]["state"] == "not_installed"
+    assert security["scans"]["vulnerabilities"] == {
+        "tool": "syft -> grype", "state": "scanned", "critical": 0, "high": 3,
+        "vex_applied": False}
+    assert security["scans"]["ai_audit"]["state"] == "unreviewed"
+    assert verify_evidence.main([str(path)]) == 0  # INCOMPLETE is a warning, not an error
+
+def test_a_gate_pass_with_an_unconfigured_plane_is_recorded_as_incomplete(workspace, tmp_path, capsys):
+    """hpc-devsecops, and the engine after it, say PASS when the AI audit is simply not
+    configured. The schema's PASS means every plane ran. make_manifest translates, and
+    says so, rather than filing a PASS the verifier would reject."""
+    make_benchmark(workspace, "pi-6month")
+    case_json = run_pair(tmp_path, [1.0], [1.0])
+    summary = tmp_path / "summary.json"
+    summary.write_text(json.dumps({
+        "schema": 1, "tool": "recast audit", "status": "PASS",
+        "commit": workspace["artifact_commit"], "timestamp": "2026-09-25T00:00:00+00:00",
+        "scans": {
+            "secrets": {"state": "passed", "findings": 0},
+            "cve": {"state": "passed", "critical": 0, "high": 0, "scope": "full-repository"},
+            "ai_audit": {"state": "not_configured", "high": 0},
+        }}))
+
+    assert make_manifest.main(manifest_argv(workspace, case_json, [
+        "--security-summary", str(summary)])) == 0
+    assert "recorded as INCOMPLETE" in capsys.readouterr().err
+    path = (workspace["cc_test"] / "evidence" / "pycam5" / workspace["version"]
+            / "manifest.json")
+    security = json.loads(path.read_text())["security"]
+    assert security["status"] == "INCOMPLETE"
+    assert security["scans"]["ai_audit"]["state"] == "unreviewed"
+    capsys.readouterr()
+    assert verify_evidence.main([str(path)]) == 0
+    assert "INCOMPLETE" in capsys.readouterr().out  # a warning, not an error
+
 def test_missing_benchmark_writes_nothing(workspace, tmp_path, capsys):
     (workspace["cc_test"] / "benchmarks" / "pycam5").mkdir(parents=True)
     case_json = run_pair(tmp_path, [1.0], [1.0])

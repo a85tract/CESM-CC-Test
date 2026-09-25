@@ -420,8 +420,13 @@ egress, which Derecho compute nodes do not have. Run the gate on a login node or
 and feed its `summary.json` into `make_manifest.py`; the schema's `INCOMPLETE` status
 exists so a partial run is still recordable rather than silently omitted.
 
-**Scheduled to move (2026-09-25).** The tooling this section describes is scheduled to move
-to the engine and recast-cesm in steps 9a-9e of `CORRECTNESS-ORGANIZATION.md`. The
-manifest's `security` block stays, and so does its source: the `summary.json` this section
-describes, which the engine's `audit` recipe will write in the same shape once step 9a lands
-(the LLM audit itself goes to recast-cesm, not the engine). Findings never enter CC-Test.
+**Moving (2026-09-25).** The tooling this section describes is moving to the engine and
+recast-cesm in steps 9a-9e of `CORRECTNESS-ORGANIZATION.md`. Step 9a landed 2026-09-25 (engine
+branch `audit-gate-summary`): `recast run <recipe> <root> --gate-summary PATH` writes the same
+`summary.json` shape `devsecops-local.sh` writes, plus `"schema": 1`, and `make_manifest.py
+--security-summary` reads either producer's file unchanged. The manifest's `security` block
+therefore keeps its source through the move (the LLM audit itself goes to recast-cesm, not the
+engine, step 9b). One translation happens in `make_manifest.py`: the gate's `PASS` does not
+count a `not_configured` plane against it, the schema's `PASS` means every plane ran, so a
+gate `PASS` with an unrun plane is recorded as `INCOMPLETE` with a warning. Findings never
+enter CC-Test.

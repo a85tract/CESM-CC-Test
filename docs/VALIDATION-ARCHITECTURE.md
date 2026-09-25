@@ -269,27 +269,39 @@ Each product repository gains exactly two files:
       # uses: a85tract/CESM-CC-Test/.github/workflows/validation-callable.yml@<ref>
 ```
 
-`VALIDATION.md` stays minimal — the manifest it links to is the only authority:
+`VALIDATION.md` stays minimal — the manifest it links to is the only authority. It is
+generated, not written: `correctness/check_validation.py render --manifest <record>` prints
+it, and this is what it prints (the clubb-jax record's shape; PyCAM5's will read the same):
 
 ```markdown
 # Validation Status
 
+Validated against the acceptance record named below; that record is the
+authority, this file is the pointer. `correctness/check_validation.py` in CC-Test
+checks the two agree and refreshes the last line.
+
 | | |
 |---|---|
-| Validated commit | `e8d68996` |
+| Validated commit | `e8d68996...` |
 | Reference        | iCESM1.3.1_fzhu CAM, <ref-commit> |
 | Validation date  | 2026-06-16 |
-| Platform         | Derecho · ifx 2025.2.1 · <mpi> · Codon <ver> |
-| Tests            | 2 cases (PI 6mo, MCO 6mo) — 2 passed, 0 failed |
-| Criteria         | bitwise (numeric BFB, per-file digest of all numeric variables) |
+| Platform         | Derecho · ifx 2025.2.1 · codon <ver> · engine ... |
+| Tests            | 2 cases — 2 passed, 0 failed, 0 error |
+| Criteria         | bitwise — 2 benchmarks under `benchmarks/pycam5/` |
 | Result           | PASS |
-| Evidence         | <permalink to CC-Test evidence/pycam5/v0.2.0/> |
+| Security gate    | PASS |
+| Evidence class   | complete |
+| Record           | `evidence/pycam5/v0.2.0/` |
+| Evidence         | https://github.com/a85tract/CESM-CC-Test/tree/main/evidence/pycam5/v0.2.0/ |
 
 > Current HEAD is N commits ahead of the validated commit.
 ```
 
-The last line is generated and refreshed by CI — this is exactly the silent rot that
-layer 2 of adjustment A exists to catch.
+`check_validation.py check` reads three rows -- `Validated commit`, `Record`, `Result` --
+and the last line; the rest is for a reader. The last line is refreshed by
+`--refresh` and checked by CI (`validation-callable.yml`, called from the product's
+`validation.yml`) — this is exactly the silent rot that layer 2 of adjustment A exists to
+catch.
 
 ---
 
@@ -345,7 +357,7 @@ Ordered so each step is independently reviewable.
 | 3 | **DONE** — `make_manifest.py` (comparator JSON + benchmark + environment probe + the Cyber gate's `summary.json` → manifest) and `verify_evidence.py` (schema + all 11 error invariants and 6 warnings from `schemas/README.md`). `tests/test_correctness.py` covers pass / findings / incomplete for each tool and the make_manifest → verify_evidence round trip | CC-Test | 1, 2 |
 | 4 | Backfill the 2026-06-16 PI/MCO results from `PyCAM5/doc/internal_validation.md` as an acceptance record. Still to do. It is no longer the first: that was clubb-jax, filed 2026-09-24 as `evidence/clubb-jax/unreleased-99c8b22f/` (`CORRECTNESS-ORGANIZATION.md` step 4) | CC-Test `evidence/pycam5/` | 3 |
 | 5 | Write `benchmarks/pycam5/{pi,mco}-6month-allcodon.yaml`, extracting case definitions from `env_allcodon_675.sh` | CC-Test | 4 |
-| 6 | **`verify-evidence.yml` DONE 2026-09-25** — on every pull request and push to `main` it runs `schemas/test_schemas.py`, `pytest tests/test_correctness.py`, `correctness/verify_evidence.py` and `correctness/index_evidence.py --check`; on a pull request the verifier gets `--base-ref origin/<base>`, so invariant 8 (`evidence/` is append-only) is enforced rather than skipped. `ci.yml` (shell syntax, ShellCheck, `tests/run.sh`) is unchanged. `validation-callable.yml`, the reusable workflow product repositories call for their `VALIDATION.md` drift check, is still to do and belongs with `CORRECTNESS-ORGANIZATION.md` step 8 | CC-Test `.github/` | 3 |
+| 6 | **`verify-evidence.yml` DONE 2026-09-25** — on every pull request and push to `main` it runs `schemas/test_schemas.py`, `pytest tests/test_correctness.py`, `correctness/verify_evidence.py` and `correctness/index_evidence.py --check`; on a pull request the verifier gets `--base-ref origin/<base>`, so invariant 8 (`evidence/` is append-only) is enforced rather than skipped. `ci.yml` (shell syntax, ShellCheck, `tests/run.sh`) is unchanged. `validation-callable.yml`, the reusable workflow product repositories call for their `VALIDATION.md` drift check, **DONE 2026-09-25** with `correctness/check_validation.py` behind it (`CORRECTNESS-ORGANIZATION.md` step 8) | CC-Test `.github/` | 3 |
 | 7 | Add `VALIDATION.md` + `validation.yml` to PyCAM5 | PyCAM5 | 6 |
 | 8 | **Half done** — `compare_stats.py` is written and evaluates both rule kinds, under the readings recorded in §8.1. Still needed: agreement on D4 (which turns those readings from a written default into the criterion), removing the schema's `provisional` marker, and extending to `jax-kernels` / `numba-kernels` / `pyphys-bridge` | CC-Test + product repos | 7, D4 |
 | 9 | Extend to `freeCAM` (bitwise; the CAM-SIMA oracle gate becomes a benchmark case) | CC-Test + freeCAM | 7 |

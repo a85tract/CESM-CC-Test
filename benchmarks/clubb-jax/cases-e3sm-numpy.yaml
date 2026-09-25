@@ -1,0 +1,68 @@
+# cases-e3sm-numpy: NumPy on the recording of bomex under upstream's e3sm_maint32 flags (l_call_pdf_closure_twice, trapezoidal rules, cloud cover).
+# Criterion for clubb-jax summaries/cases-e3sm-numpy.json. Units are listed as the summary
+# spells them; the ungated entries and waivers are the case README's own
+# account (section 1), written here so the criterion is explicit rather than
+# inferred from the last run. Every waiver names its bound and its reason.
+
+id: "cases-e3sm-numpy"
+product: "clubb-jax"
+description: "NumPy on the recording of bomex under upstream's e3sm_maint32 flags (l_call_pdf_closure_twice, trapezoidal rules, cloud cover)"
+case:
+  recipe: "translate-clubb"
+  summary: "summaries/cases-e3sm-numpy.json"
+  engine: "e3c6717"
+  extension: "recast-clubb"
+  precision: "double (CLUBB_REAL_TYPE=8)"
+  recording: "output/recorded_e3sm; local data under clubb-jax output/, not in the repository"
+  notes: "python tools/regate.py run  (tools/regate/jobs.json lists the jobs; tools/regate/configs/ holds each job's config)"
+reference:
+  model: "CLUBB_core, larson-group/clubb_release"
+  commit_or_tag: "8ab3902"
+  provenance: "dump-replay: clubb_standalone instrumented so every call of the routine writes its inputs and outputs; run_scm.py on bomex-e3sm_maint32, the first 20 calls of each probe per case; gfortran (Homebrew GCC 16.1.0) -O1 -fno-fast-math -ffp-contract=off, statistics off (l_stats = .false.), CLUBB_REAL_TYPE=8"
+acceptance:
+  kind: "unit-differential"
+  summary_schema: 1
+  rules:
+    - check: "unit_set_equal"
+      units:
+        - "fortran:advance_clubb_core_module"
+        - "fortran:advance_windm_edsclrm_module"
+        - "fortran:advance_wp2_wp3_module"
+        - "fortran:advance_xm_wpxp_module"
+        - "fortran:advance_xp2_xpyp_module"
+        - "fortran:advance_xp3_module"
+        - "fortran:clip_explicit"
+        - "fortran:mixing_length"
+        - "fortran:mono_flux_limiter"
+        - "fortran:new_hybrid_pdf_main"
+        - "fortran:new_pdf_main"
+        - "fortran:pdf_closure_module"
+        - "fortran:sponge_layer_damping"
+      gating: true
+    - check: "confidence_at_least"
+      verifier: "static.rwset"
+      level: "sampled"
+      gating: true
+      note: "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+    - check: "confidence_at_least"
+      verifier: "differential.bitexact"
+      level: "bit_exact"
+      gating: true
+      note: "every floating-point value of every output identical to the Fortran's"
+      ungated: &ungated
+        "fortran:new_hybrid_pdf_main":
+          reason: "stopped by dump-replay: the recording of this case holds no call of this unit"
+        "fortran:new_pdf_main":
+          reason: "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+        "fortran:sponge_layer_damping":
+          reason: "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+    - check: "nan_mask_equal"
+      verifier: "differential.bitexact"
+      gating: true
+      ungated: *ungated
+    - check: "confidence_at_least"
+      verifier: "symbolic.notary"
+      level: "symbolic"
+      gating: false
+      note: "optional stage: no arithmetic reordered in translation; reported, not gated"
+      ungated: *ungated

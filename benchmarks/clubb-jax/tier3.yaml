@@ -1,0 +1,46 @@
+# tier3: advance_clubb_core_module, the whole step, NumPy gated bit-exact on the recording of bomex and cgils_s6: 40 steps, 453,700 values.
+# Criterion for clubb-jax summaries/tier3.json. Units are listed as the summary
+# spells them; the ungated entries and waivers are the case README's own
+# account (section 1), written here so the criterion is explicit rather than
+# inferred from the last run. Every waiver names its bound and its reason.
+
+id: "tier3"
+product: "clubb-jax"
+description: "advance_clubb_core_module, the whole step, NumPy gated bit-exact on the recording of bomex and cgils_s6: 40 steps, 453,700 values"
+case:
+  recipe: "translate-clubb"
+  summary: "summaries/tier3.json"
+  engine: "e3c6717"
+  extension: "recast-clubb"
+  precision: "double (CLUBB_REAL_TYPE=8)"
+  recording: "output/recorded_tier3 (bomex, cgils_s6-hybridpdf; 20 calls); local data under clubb-jax output/, not in the repository"
+  notes: "python tools/regate.py run  (tools/regate/jobs.json lists the jobs; tools/regate/configs/ holds each job's config)"
+reference:
+  model: "CLUBB_core, larson-group/clubb_release"
+  commit_or_tag: "8ab3902"
+  provenance: "dump-replay: clubb_standalone instrumented so every call of the routine writes its inputs and outputs; run_scm.py on bomex and cgils_s6-hybridpdf, the first 20 calls of each probe per case; gfortran (Homebrew GCC 16.1.0) -O1 -fno-fast-math -ffp-contract=off, statistics off (l_stats = .false.), CLUBB_REAL_TYPE=8"
+acceptance:
+  kind: "unit-differential"
+  summary_schema: 1
+  rules:
+    - check: "unit_set_equal"
+      units: ["fortran:advance_clubb_core_module"]
+      gating: true
+    - check: "confidence_at_least"
+      verifier: "static.rwset"
+      level: "sampled"
+      gating: true
+      note: "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+    - check: "confidence_at_least"
+      verifier: "differential.bitexact"
+      level: "bit_exact"
+      gating: true
+      note: "every floating-point value of every output identical to the Fortran's"
+    - check: "nan_mask_equal"
+      verifier: "differential.bitexact"
+      gating: true
+    - check: "confidence_at_least"
+      verifier: "symbolic.notary"
+      level: "symbolic"
+      gating: false
+      note: "optional stage: no arithmetic reordered in translation; reported, not gated"

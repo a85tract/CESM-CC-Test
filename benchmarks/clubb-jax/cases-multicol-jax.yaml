@@ -1,0 +1,67 @@
+# cases-multicol-jax: JAX on the recording of bomex run as four grid columns at once.
+# Criterion for clubb-jax summaries/cases-multicol-jax.json. Units are listed as the summary
+# spells them; the ungated entries and waivers are the case README's own
+# account (section 1), written here so the criterion is explicit rather than
+# inferred from the last run. Every waiver names its bound and its reason.
+
+id: "cases-multicol-jax"
+product: "clubb-jax"
+description: "JAX on the recording of bomex run as four grid columns at once"
+case:
+  recipe: "port-clubb"
+  summary: "summaries/cases-multicol-jax.json"
+  engine: "e3c6717"
+  extension: "recast-clubb"
+  precision: "double (CLUBB_REAL_TYPE=8)"
+  recording: "output/recorded_multicol; local data under clubb-jax output/, not in the repository"
+  xla_flags: "--xla_backend_optimization_level=0 --xla_disable_hlo_passes=algsimp"
+  notes: "python tools/regate.py run  (tools/regate/jobs.json lists the jobs; tools/regate/configs/ holds each job's config)"
+reference:
+  model: "CLUBB_core, larson-group/clubb_release"
+  commit_or_tag: "8ab3902"
+  provenance: "dump-replay: clubb_standalone instrumented so every call of the routine writes its inputs and outputs; run_scm.py on bomex with -multicol 4, the first 20 calls of each probe; gfortran (Homebrew GCC 16.1.0) -O1 -fno-fast-math -ffp-contract=off, statistics off (l_stats = .false.), CLUBB_REAL_TYPE=8"
+acceptance:
+  kind: "unit-differential"
+  summary_schema: 1
+  rules:
+    - check: "unit_set_equal"
+      units:
+        - "fortran:advance_clubb_core_module"
+        - "fortran:advance_windm_edsclrm_module"
+        - "fortran:advance_wp2_wp3_module"
+        - "fortran:advance_xm_wpxp_module"
+        - "fortran:advance_xp2_xpyp_module"
+        - "fortran:advance_xp3_module"
+        - "fortran:clip_explicit"
+        - "fortran:mixing_length"
+        - "fortran:mono_flux_limiter"
+        - "fortran:new_hybrid_pdf_main"
+        - "fortran:new_pdf_main"
+        - "fortran:pdf_closure_module"
+        - "fortran:sponge_layer_damping"
+      gating: true
+    - check: "ulp_tiered"
+      verifier: "differential.tolerance"
+      dominant_at: 0.001
+      ulp_gate: 32
+      rel_gate: 1.0e-12
+      gating: true
+      note: "every dominant element (within 1e-3 of the largest in its row) within 32 ULP of the Fortran, every element within 1e-12 relative; verdicts taken with XLA's fused multiply-add and algebraic simplifier off"
+      waivers:
+        "fortran:advance_clubb_core_module":
+          ulp_gate: 64
+          reason: "conditioning, not a defect: the worst dominant element is 64 ULP out; moving every erf and exp result of the bit-exact reference by one ULP moves dominant elements by 44,478,880 ULP (1.0 relative) on the worst recorded samples, so 64 ULP is inside what the reference's own last bit is worth there. The candidate's max_rel stays within 1e-12 (README section 1, 'One ULP of erf under the trapezoidal rule')"
+        "fortran:pdf_closure_module":
+          ulp_gate: 64
+          reason: "conditioning, not a defect: the worst dominant element is 64 ULP out; moving every erf and exp result of the bit-exact reference by one ULP moves dominant elements by 44,228,480 ULP (2.7e-09 relative) on the worst recorded samples, so 64 ULP is inside what the reference's own last bit is worth there. The candidate's max_rel stays within 1e-12 (README section 1, 'One ULP of erf under the trapezoidal rule')"
+      ungated: &ungated
+        "fortran:new_hybrid_pdf_main":
+          reason: "stopped by dump-replay: the recording of this case holds no call of this unit"
+        "fortran:new_pdf_main":
+          reason: "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+        "fortran:sponge_layer_damping":
+          reason: "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+    - check: "nan_mask_equal"
+      verifier: "differential.tolerance"
+      gating: true
+      ungated: *ungated

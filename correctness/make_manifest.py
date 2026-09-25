@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble an evidence manifest from comparator output plus environment probes.
+"""Assemble an acceptance record's manifest from comparator output plus environment probes.
 
 Migration step 3; see ../docs/VALIDATION-ARCHITECTURE.md.
 
@@ -17,7 +17,8 @@ Inputs
   --reference-model     baseline identity; --reference-commit, --reference-provenance
   --outputs-location    absolute path on HPC storage
   --outputs-retention   retention class and expected purge date
-  --security-summary    summary.json from tools/devsecops-local.sh
+  --security-summary    the Cyber gate's summary.json: from tools/devsecops-local.sh, or
+                        from `recast run audit ... --gate-summary` (same shape, plus `schema: 1`)
   --out PATH            where to write manifest.json
 
 Every value comes from the benchmark, the comparator, a probe, or an explicit
@@ -61,6 +62,18 @@ Two invariants this tool is responsible for
    schema — a reconstructed manifest is a format example, and the verifier says
    so. `--evidence-class complete` with provenance missing is an error, not a
    promotion.
+
+Unit-differential cases
+-----------------------
+For a benchmark whose acceptance `kind` is `unit-differential`, the comparator
+JSON is a RecastEngine run summary — the `verification.json` that
+`recast run ... --summary` writes and a case repository commits (`schema: 1`,
+one entry per unit, one verdict per verifier). The engine is the comparator;
+this tool reads what it recorded and decides which of those measurements gate,
+exactly as it does for the whole-model comparators. The summary file itself is
+fingerprinted into `outputs.files`, so the manifest names the record it was
+built from. A summary with a different `schema` value, or a unit with no verdict
+from the verifier a rule names, is unevaluable — never a pass.
 
 A rule the comparator did not measure
 -------------------------------------
@@ -250,10 +263,158 @@ def _statistical_check(rule: dict, comparison: dict) -> Tuple[Optional[bool], st
     return bool(entry["passed"]), entry.get("detail", "")
 
 
+# The engine's confidence ladder, weakest to strongest. `failed` sits below
+# every level a rule may ask for, so it never satisfies confidence_at_least.
+CONFIDENCE_RANK = {"failed": 0, "sampled": 1, "toleranced": 2, "ulp_bounded": 3,
+                   "bit_exact": 4, "symbolic": 5}
+
+
+def summary_units(summary: dict) -> List[dict]:
+    units = summary.get("units")
+    if not isinstance(units, list) or not units:
+        raise Unevaluable("the summary lists no units")
+    return units
+
+
+def verdicts_for(units: List[dict], verifier: str,
+                 ungated: Optional[dict] = None) -> List[Tuple[str, dict]]:
+    """(unit name, verdict) for the named verifier, one per unit; missing is unevaluable.
+
+    Units the rule lists as `ungated` are skipped, not judged: the benchmark has
+    written down that no verdict is expected there and why. A unit that is
+    ungated but absent from the summary altogether is unit_set_equal's finding.
+    """
+    found: List[Tuple[str, dict]] = []
+    missing: List[str] = []
+    skip = set(ungated or {})
+    for unit in units:
+        name = str(unit.get("unit"))
+        if name in skip:
+            continue
+        match = [v for v in unit.get("verdicts") or [] if v.get("verifier") == verifier]
+        if not match:
+            missing.append(name + (" (stopped by %s)" % unit["stopped_by"]
+                                   if unit.get("stopped_by") else ""))
+            continue
+        found.append((name, match[0]))
+    if missing:
+        raise Unevaluable("no verdict from %s for: %s" % (verifier, ", ".join(missing)))
+    if not found:
+        raise Unevaluable("every unit is ungated for %s; nothing was judged" % verifier)
+    return found
+
+
+def _ungated_note(rule: dict) -> str:
+    names = sorted(rule.get("ungated") or {})
+    return "; ungated: " + ", ".join(names) if names else ""
+
+
+def _metric(verdict: dict, unit: str, key: str):
+    metrics = verdict.get("metrics") or {}
+    if key not in metrics:
+        raise Unevaluable("unit %s: the verdict records no %r metric" % (unit, key))
+    return metrics[key]
+
+
+def _unit_differential_check(rule: dict, summary: dict) -> Tuple[Optional[bool], str]:
+    check = rule.get("check")
+    units = summary_units(summary)
+
+    if check == "unit_set_equal":
+        present = {str(u.get("unit")) for u in units}
+        expected = set(rule["units"])
+        parts = []
+        if expected - present:
+            parts.append("missing from the summary: %s" % ", ".join(sorted(expected - present)))
+        if present - expected:
+            parts.append("not named by the benchmark: %s" % ", ".join(sorted(present - expected)))
+        stopped = [str(u.get("unit")) for u in units if u.get("stopped_by")]
+        detail = "; ".join(parts) or "%d units, as the benchmark names them" % len(expected)
+        if stopped:
+            detail += "; stopped before the gate completed: " + ", ".join(sorted(stopped))
+        return not parts, detail
+
+    if check == "confidence_at_least":
+        needed = CONFIDENCE_RANK[rule["level"]]
+        weakest = None
+        for name, verdict in verdicts_for(units, rule["verifier"], rule.get("ungated")):
+            confidence = verdict.get("confidence")
+            if confidence not in CONFIDENCE_RANK:
+                raise Unevaluable("unit %s: confidence %r is not on the ladder" % (name, confidence))
+            if weakest is None or CONFIDENCE_RANK[confidence] < CONFIDENCE_RANK[weakest[1]]:
+                weakest = (name, confidence)
+        assert weakest is not None
+        passed = CONFIDENCE_RANK[weakest[1]] >= needed
+        return passed, "weakest %s is %s (%s); required at least %s%s" % (
+            rule["verifier"], weakest[1], weakest[0], rule["level"], _ungated_note(rule))
+
+    if check == "ulp_tiered":
+        verifier = rule.get("verifier", "differential.tolerance")
+        waivers = rule.get("waivers") or {}
+        worst_ulp: Tuple[int, str] = (-1, "")
+        worst_rel: Tuple[float, str] = (-1.0, "")
+        failing: List[str] = []
+        applied: List[str] = []
+        for name, verdict in verdicts_for(units, verifier, rule.get("ungated")):
+            recorded_ulp = _metric(verdict, name, "ulp_gate")
+            recorded_rel = _metric(verdict, name, "rel_gate")
+            if recorded_ulp != rule["ulp_gate"] or recorded_rel != rule["rel_gate"]:
+                raise Unevaluable(
+                    "unit %s: the verifier ran with ulp_gate=%r rel_gate=%r but the benchmark "
+                    "says %r/%r; the benchmark and the run do not describe the same criterion"
+                    % (name, recorded_ulp, recorded_rel, rule["ulp_gate"], rule["rel_gate"]))
+            recorded_dominant = (verdict.get("metrics") or {}).get("dominant_at")
+            if recorded_dominant is not None and recorded_dominant != rule["dominant_at"]:
+                raise Unevaluable(
+                    "unit %s: the verifier ran with dominant_at=%r but the benchmark says %r"
+                    % (name, recorded_dominant, rule["dominant_at"]))
+            max_ulp = int(_metric(verdict, name, "max_ulp_dominant"))
+            max_rel = float(_metric(verdict, name, "max_rel"))
+            bound = int(rule["ulp_gate"])
+            if name in waivers:
+                bound = int(waivers[name]["ulp_gate"])
+                applied.append("%s<=%d" % (name, bound))
+            if max_ulp > bound or max_rel > float(rule["rel_gate"]):
+                failing.append("%s (%d ULP dominant, max_rel %.3g)" % (name, max_ulp, max_rel))
+            if max_ulp > worst_ulp[0]:
+                worst_ulp = (max_ulp, name)
+            if max_rel > worst_rel[0]:
+                worst_rel = (max_rel, name)
+        detail = "worst dominant %d ULP (%s) vs gate %d; worst max_rel %.3g (%s) vs %g" % (
+            worst_ulp[0], worst_ulp[1], rule["ulp_gate"], worst_rel[0], worst_rel[1],
+            float(rule["rel_gate"]))
+        if applied:
+            detail += "; waivers applied: " + ", ".join(applied)
+        if failing:
+            detail += "; beyond the gate: " + ", ".join(failing)
+        return not failing, detail + _ungated_note(rule)
+
+    if check == "nan_mask_equal":
+        mismatched = []
+        for name, verdict in verdicts_for(units, rule["verifier"], rule.get("ungated")):
+            if int(_metric(verdict, name, "nan_mismatch")) != 0:
+                mismatched.append(name)
+        if mismatched:
+            return False, "non-finite masks differ in: " + ", ".join(mismatched) + _ungated_note(rule)
+        return True, "non-finite masks agree in every judged unit" + _ungated_note(rule)
+
+    raise Unevaluable("no evaluator for check %r" % check)
+
+
+EVALUATORS = {
+    "bitwise": _bitwise_check,
+    "statistical": _statistical_check,
+    "unit-differential": _unit_differential_check,
+}
+
+
 def evaluate_case(acceptance: dict, comparison: dict) -> dict:
     """Build cases[].result from the benchmark's rules and the comparator's output."""
     kind = acceptance.get("kind")
-    evaluator = _statistical_check if kind == "statistical" else _bitwise_check
+    evaluator = EVALUATORS.get(kind)
+    if evaluator is None:
+        raise BuildError("acceptance kind %r has no evaluator; the schema names %s"
+                         % (kind, ", ".join(sorted(EVALUATORS))))
 
     checks: List[dict] = []
     reasons: List[str] = []
@@ -414,6 +575,23 @@ def security_block(args, artifact_commit: str, cc_test_commit: str,
             },
         },
     }
+    # The gate's own PASS means "nothing blocking among the checks that ran";
+    # hpc-devsecops does not count a plane that is not configured against it,
+    # and the engine's `recast run audit --gate-summary` keeps that reading.
+    # The schema's PASS is stricter: every plane ran and nothing blocking was
+    # found. The translation happens here, so the manifest says what the
+    # schema means and the gate keeps saying what it means.
+    planes = block["scans"]
+    all_ran = (planes["secrets"]["state"] == "scanned"
+               and planes["vulnerabilities"]["state"] == "scanned"
+               and planes["ai_audit"]["state"] == "reviewed")
+    if block["status"] == "PASS" and not all_ran:
+        block["status"] = "INCOMPLETE"
+        warnings.append(
+            "the Cyber gate reported PASS with a plane that did not run (states %s/%s/%s); "
+            "recorded as INCOMPLETE, which is what the schema calls that"
+            % (planes["secrets"]["state"], planes["vulnerabilities"]["state"],
+               planes["ai_audit"]["state"]))
     if artifact_repo is None:
         warnings.append(
             "no --artifact-repo: target_config and vex_applied recorded as false "
@@ -475,6 +653,14 @@ def build_case(case_id: str, comparator_json: Path, args) -> Tuple[dict, dict, L
         comparison = json.loads(comparator_json.read_text())
     except ValueError as exc:
         raise BuildError("%s is not valid JSON: %s" % (comparator_json, exc)) from exc
+    if acceptance.get("kind") == "unit-differential":
+        expected_schema = acceptance.get("summary_schema")
+        if not isinstance(comparison, dict) or comparison.get("schema") != expected_schema:
+            raise BuildError(
+                "%s is not a RecastEngine run summary with schema %r (found %r); a "
+                "unit-differential case reads the file `recast run --summary` writes"
+                % (comparator_json, expected_schema,
+                   comparison.get("schema") if isinstance(comparison, dict) else type(comparison).__name__))
 
     case: Dict[str, object] = {
         "id": case_id,
@@ -503,6 +689,10 @@ def build_case(case_id: str, comparator_json: Path, args) -> Tuple[dict, dict, L
             "case %r has no outputs location; pass --outputs-location or "
             "--case-outputs %s=DIR" % (case_id, case_id))
     files: List[dict] = []
+    if acceptance.get("kind") == "unit-differential":
+        # The summary is the record this case was judged from; name it.
+        files.append({"name": comparator_json.name, "md5": md5_file(comparator_json),
+                      "bytes": comparator_json.stat().st_size})
     if outputs_dir is not None:
         if outputs_dir.is_dir():
             for key, path in sorted(dataio.collect_run_files(outputs_dir).items()):
@@ -666,7 +856,7 @@ def validate(manifest: dict) -> List[str]:
 
 def write_summary(manifest: dict, path: Path) -> None:
     lines = [
-        "# Validation summary — %s %s" % (manifest["artifact"]["name"],
+        "# Acceptance record — %s %s" % (manifest["artifact"]["name"],
                                           manifest["artifact"]["version"]),
         "",
         "| | |",
@@ -710,7 +900,7 @@ def write_summary(manifest: dict, path: Path) -> None:
 
 def parse_args(argv: Optional[List[str]] = None):
     parser = argparse.ArgumentParser(
-        description="Assemble an evidence manifest from comparator output.")
+        description="Assemble an acceptance record's manifest from comparator output.")
     parser.add_argument("--case", action="append", metavar="ID=PATH",
                         help="comparator JSON for one case; repeatable")
     parser.add_argument("--benchmark-dir", type=Path, required=True)
@@ -734,7 +924,8 @@ def parse_args(argv: Optional[List[str]] = None):
                         help="candidate output directory to fingerprint; repeatable")
     parser.add_argument("--assets-release")
     parser.add_argument("--security-summary", type=Path,
-                        help="summary.json from tools/devsecops-local.sh")
+                        help="the Cyber gate's summary.json, from tools/devsecops-local.sh or from "
+                             "`recast run audit ... --gate-summary` (same shape, plus schema: 1)")
     parser.add_argument("--security-gate", default="hpc-devsecops")
     parser.add_argument("--security-timestamp")
     parser.add_argument("--evidence-class", default="auto",

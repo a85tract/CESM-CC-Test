@@ -2,7 +2,7 @@
 # The `acceptance` block must validate against ../schemas/acceptance.v1.json.
 
 id: TODO-case-id            # must equal this file's stem
-product: TODO               # pycam5 | freecam | pyccpp | jax-kernels | numba-kernels | pyphys-bridge
+product: TODO               # pycam5 | freecam | clubb-jax | clm-ml-jax | elm-jax
 description: TODO           # one line, shown in the generated evidence index
 
 case:
@@ -19,9 +19,10 @@ reference:
   provenance: TODO          # e.g. "pristine native baseline, no SourceMods"
 
 # ---------------------------------------------------------------------------
-# Acceptance criteria. The example below is the bitwise shape used by
-# Pipeline 1; delete it and use the statistical shape for Pipeline 2 once
-# decision D4 settles that vocabulary.
+# Acceptance criteria. The first example is the bitwise shape for a whole-model
+# run pair; the second (commented out) is the unit-differential shape for a
+# RecastEngine case, read from the case repository's verification.json. The
+# statistical shape stays provisional (decision D4, ensemble family).
 #
 # Every rule needs an explicit `gating`. A rule that is measured but does not
 # gate still belongs here with `gating: false` — that is how the evidence
@@ -52,3 +53,33 @@ acceptance:
       note: "performance is reported alongside correctness and never gates it"
       # If you do set gating: true here, max_abs_pct becomes required — a gating
       # rule with no bound cannot reach a verdict.
+
+# ---------------------------------------------------------------------------
+# Unit-differential shape (clubb-jax, clm-ml-jax, elm-jax). The comparator is
+# RecastEngine; the measurements are the verdicts in `recast run --summary`.
+# Units and verifiers are named exactly as the summary spells them.
+# ---------------------------------------------------------------------------
+# acceptance:
+#   kind: unit-differential
+#   summary_schema: 1
+#   rules:
+#     - check: unit_set_equal          # always gating: a PASS over fewer units is not a PASS
+#       units: ["fortran:advance_clubb_core_module", "fortran:pdf_closure_module"]
+#       gating: true
+#     - check: confidence_at_least     # the NumPy translation is bit-exact
+#       verifier: differential.bitexact
+#       level: bit_exact
+#       gating: true
+#     - check: ulp_tiered              # the JAX port, decision D4 (settled 2026-09-24)
+#       verifier: differential.tolerance
+#       dominant_at: 1.0e-3
+#       ulp_gate: 32
+#       rel_gate: 1.0e-12
+#       waivers:                       # every relaxation is written here, with its reason
+#         "fortran:pdf_closure_module":
+#           ulp_gate: 192
+#           reason: "measured conditioning: 1-ULP perturbation of the reference's transcendentals moves dominant elements by 1.7e7 ULP"
+#       gating: true
+#     - check: nan_mask_equal
+#       verifier: differential.tolerance
+#       gating: true

@@ -1,0 +1,55 @@
+# port-day1: the fifteen canopy physics modules as JAX kernels, gated at the ULP tier on the day-1 recording (leaf-out) of the US-CHATS 2007 tower run.
+# Criterion for clm-ml-jax output/port/summary.json. Units are the fifteen canopy
+# physics modules that summary covers. The summary the case commits today is not
+# the engine's schema-1 file (see case.summary_status), so this benchmark states
+# the criterion but cannot be evaluated until the case commits one.
+
+id: "port-day1"
+product: "clm-ml-jax"
+description: "the fifteen canopy physics modules as JAX kernels, gated at the ULP tier on the day-1 recording (leaf-out) of the US-CHATS 2007 tower run"
+case:
+  recipe: "port-clm-ml"
+  summary: "output/port/summary.json"
+  summary_status: "NOT YET READABLE: run_port.py writes a merged {unit: {verdict: <string>, stopped, kernels}} file, not the engine's schema-1 summary; the case has to commit the file `recast run --summary` writes before make_manifest.py can evaluate this benchmark"
+  engine: "9b2f515"
+  extension: "recast-clm-ml cfb3fce"
+  precision: "double (jax_enable_x64)"
+  recording: "output/recorded (committed), 48 calls per probe"
+  xla_flags: "default (jit on); see the ulp_tiered note"
+  notes: "python run_port.py   (15 physics units, ~3 min); regate log output/run_port.regate2.log"
+reference:
+  model: "CLM-ml v2, gbonan/CLM-ml_v2.CHATS"
+  commit_or_tag: "8d1cc40"
+  provenance: "dump-replay: the Fortran instrumented with recast.oracle.record, run at the US-CHATS tower site; gfortran (Homebrew GCC 16.1.0) -O1 -fno-fast-math -ffp-contract=off -ffree-line-length-none -fno-range-check, namelist nl.CHATS7.05.2007"
+acceptance:
+  kind: "unit-differential"
+  summary_schema: 1
+  rules:
+    - check: "unit_set_equal"
+      units:
+        - "fortran:mlcanopynitrogenprofilemod"
+        - "fortran:mlcanopyturbulencemod"
+        - "fortran:mlcanopywatermod"
+        - "fortran:mlfluxprofilesolutionmod"
+        - "fortran:mlinitverticalmod"
+        - "fortran:mlleafboundarylayermod"
+        - "fortran:mlleaffluxesmod"
+        - "fortran:mlleafheatcapacitymod"
+        - "fortran:mlleafphotosynthesismod"
+        - "fortran:mllongwaveradiationmod"
+        - "fortran:mlplanthydraulicsmod"
+        - "fortran:mlrungekuttamod"
+        - "fortran:mlsoilfluxesmod"
+        - "fortran:mlsoiltemperaturemod"
+        - "fortran:mlsolarradiationmod"
+      gating: true
+    - check: "ulp_tiered"
+      verifier: "differential.tolerance"
+      dominant_at: 0.001
+      ulp_gate: 32
+      rel_gate: 1.0e-12
+      gating: true
+      note: "every dominant element (within 1e-3 of the largest in its row) within 32 ULP of the Fortran, every element within 1e-12 relative, under jit with XLA's default passes. Three units fail this under jit and are exact with jit off: mlfluxprofilesolutionmod 67175 ULP, mllongwaveradiationmod 5792 ULP, mlsoilfluxesmod 2399 ULP (output/run_port.regate2.log). The case README attributes the residual to XLA fusion; the verifier records it as a defect, not conditioning. The three stay gated, so this case reads FAIL until the kernels are fixed or the maintainer carves them out here with a written reason"
+    - check: "nan_mask_equal"
+      verifier: "differential.tolerance"
+      gating: true

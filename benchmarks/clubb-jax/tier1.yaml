@@ -1,0 +1,65 @@
+# tier1: the 11 modules that take grid or the PDF types, NumPy gated bit-exact on sampled inputs.
+# Criterion for clubb-jax summaries/tier1.json. Units are listed as the summary
+# spells them; the ungated entries and waivers are the case README's own
+# account (section 1), written here so the criterion is explicit rather than
+# inferred from the last run. Every waiver names its bound and its reason.
+
+id: "tier1"
+product: "clubb-jax"
+description: "the 11 modules that take grid or the PDF types, NumPy gated bit-exact on sampled inputs"
+case:
+  recipe: "translate-clubb"
+  summary: "summaries/tier1.json"
+  engine: "e3c6717"
+  extension: "recast-clubb"
+  precision: "double (CLUBB_REAL_TYPE=8)"
+  notes: "python tools/regate.py run  (tools/regate/jobs.json lists the jobs; tools/regate/configs/ holds each job's config)"
+reference:
+  model: "CLUBB_core, larson-group/clubb_release"
+  commit_or_tag: "8ab3902"
+  provenance: "f2py-golden-clubb: the same Fortran compiled through f2py and called on generated inputs inside physical ranges (recast_inputs.py at the staged root); derived-type arguments flattened on both sides"
+acceptance:
+  kind: "unit-differential"
+  summary_schema: 1
+  rules:
+    - check: "unit_set_equal"
+      units:
+        - "fortran:advance_helper_module"
+        - "fortran:calc_pressure"
+        - "fortran:diffusion"
+        - "fortran:new_hybrid_pdf_main"
+        - "fortran:new_pdf_main"
+        - "fortran:pdf_utilities"
+        - "fortran:pos_definite_module"
+        - "fortran:saturation"
+        - "fortran:sigma_sqd_w_module"
+        - "fortran:sponge_layer_damping"
+        - "fortran:turbulent_adv_pdf"
+      gating: true
+    - check: "confidence_at_least"
+      verifier: "static.rwset"
+      level: "sampled"
+      gating: true
+      note: "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+    - check: "confidence_at_least"
+      verifier: "differential.bitexact"
+      level: "bit_exact"
+      gating: true
+      note: "every floating-point value of every output identical to the Fortran's"
+      ungated: &ungated
+        "fortran:new_hybrid_pdf_main":
+          reason: "its public drivers derive the PDF shape parameters from the tunables and reach their error stop or leave the domain on generated inputs, so nothing was compared here; verified on recordings instead (tier2, cases-more)"
+        "fortran:new_pdf_main":
+          reason: "its public drivers derive the PDF shape parameters from the tunables and reach their error stop or leave the domain on generated inputs, so nothing was compared here; no case reaches it (it needs LES-derived inputs), so it is not verified anywhere"
+        "fortran:sponge_layer_damping":
+          reason: "initialize_tau_sponge_damp_api creates its intent(out) object and writes only the levels inside the sponge layer; the rest is undefined on both sides. Called from clubb_driver, outside CLUBB_core; not verified"
+    - check: "nan_mask_equal"
+      verifier: "differential.bitexact"
+      gating: true
+      ungated: *ungated
+    - check: "confidence_at_least"
+      verifier: "symbolic.notary"
+      level: "symbolic"
+      gating: false
+      note: "optional stage: no arithmetic reordered in translation; reported, not gated"
+      ungated: *ungated

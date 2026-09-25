@@ -1,0 +1,66 @@
+# tier0: the 14 modules that use only clubb_precision and constants_clubb, NumPy gated bit-exact on sampled inputs.
+# Criterion for clubb-jax summaries/tier0.json. Units are listed as the summary
+# spells them; the ungated entries and waivers are the case README's own
+# account (section 1), written here so the criterion is explicit rather than
+# inferred from the last run. Every waiver names its bound and its reason.
+
+id: "tier0"
+product: "clubb-jax"
+description: "the 14 modules that use only clubb_precision and constants_clubb, NumPy gated bit-exact on sampled inputs"
+case:
+  recipe: "translate-clubb"
+  summary: "summaries/tier0.json"
+  engine: "e3c6717"
+  extension: "recast-clubb"
+  precision: "double (CLUBB_REAL_TYPE=8)"
+  notes: "python tools/regate.py run  (tools/regate/jobs.json lists the jobs; tools/regate/configs/ holds each job's config)"
+reference:
+  model: "CLUBB_core, larson-group/clubb_release"
+  commit_or_tag: "8ab3902"
+  provenance: "f2py-golden-clubb: the same Fortran compiled through f2py and called on generated inputs inside physical ranges (recast_inputs.py at the staged root); derived-type arguments flattened on both sides"
+acceptance:
+  kind: "unit-differential"
+  summary_schema: 1
+  rules:
+    - check: "unit_set_equal"
+      units:
+        - "fortran:bicgstab_solvers"
+        - "fortran:calc_roots"
+        - "fortran:calendar"
+        - "fortran:interpolation"
+        - "fortran:ly93_pdf"
+        - "fortran:mean_adv"
+        - "fortran:nc_ncn_eqns"
+        - "fortran:new_hybrid_pdf"
+        - "fortran:new_pdf"
+        - "fortran:new_tsdadg_pdf"
+        - "fortran:penta_lu_solvers"
+        - "fortran:skx_module"
+        - "fortran:t_in_k_module"
+        - "fortran:tridiag_lu_solvers"
+      gating: true
+    - check: "confidence_at_least"
+      verifier: "static.rwset"
+      level: "sampled"
+      gating: true
+      note: "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+    - check: "confidence_at_least"
+      verifier: "differential.bitexact"
+      level: "bit_exact"
+      gating: true
+      note: "every floating-point value of every output identical to the Fortran's"
+      ungated: &ungated
+        "fortran:calc_roots":
+          reason: "judged and not bit-exact: 738 of 810 points bit-exact, the other 72 one ULP out, where gfortran's complex division and NumPy's round differently (README section 1, tier 0). Reported in the summary, not accepted at bit_exact"
+        "fortran:new_pdf":
+          reason: "two of its routines, calc_setter_var_params and calc_coefs_wpxpyp_semiimpl, have no drawable input: NaN on both sides on every draw, so the fail-closed gate records 'failed'. The complex-valued routine is bit-exact"
+    - check: "nan_mask_equal"
+      verifier: "differential.bitexact"
+      gating: true
+      ungated: *ungated
+    - check: "confidence_at_least"
+      verifier: "symbolic.notary"
+      level: "symbolic"
+      gating: false
+      note: "optional stage: no arithmetic reordered in translation; reported, not gated"
+      ungated: *ungated

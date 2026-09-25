@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "source": "evidence/<product>/<version>/manifest.json, via correctness/index_evidence.py",
+  "records": [
+    {
+      "product": "clubb-jax",
+      "version": "unreleased-99c8b22f",
+      "path": "clubb-jax/unreleased-99c8b22f/",
+      "artifact": {
+        "name": "clubb-jax",
+        "repo": "https://github.com/a85tract/clubb-jax",
+        "commit": "99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d"
+      },
+      "reference": {
+        "model": "CLUBB_core, larson-group/clubb_release",
+        "commit_or_tag": "8ab3902"
+      },
+      "cases": {
+        "total": 15,
+        "passed": 15,
+        "ids": [
+          "cases-e3sm-jax",
+          "cases-e3sm-numpy",
+          "cases-late-jax",
+          "cases-late-numpy",
+          "cases-more-jax",
+          "cases-more-numpy",
+          "cases-multicol-jax",
+          "cases-multicol-numpy",
+          "cases-scalars-jax",
+          "cases-scalars-numpy",
+          "port",
+          "tier0",
+          "tier1",
+          "tier2",
+          "tier3"
+        ]
+      },
+      "result": "PASS",
+      "security": "NOT_RUN",
+      "evidence_class": "complete",
+      "validated": "2026-09-21T19:44:00Z",
+      "cc_test_commit": "86a46e8c712a59bc2d3c9a4be5f77adb4e139224"
+    }
+  ]
+}

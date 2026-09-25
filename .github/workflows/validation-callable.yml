@@ -1,0 +1,74 @@
+# A reusable workflow for product repositories: does VALIDATION.md still tell the truth?
+#
+# A product repository (clubb-jax, PyCAM5, ...) carries a VALIDATION.md that names the
+# commit that was validated and the acceptance record here that says so. This checks,
+# on every push and pull request over there, that the record exists, that it is about
+# that commit, that it says what the file says, and how far HEAD has moved on -- the
+# silent rot VALIDATION-ARCHITECTURE.md §4 (layer 2) exists to catch.
+#
+# In the product repository, .github/workflows/validation.yml:
+#
+#   name: Validation status
+#   on: [push, pull_request]
+#   permissions: { contents: read }
+#   jobs:
+#     status:
+#       uses: a85tract/CESM-CC-Test/.github/workflows/validation-callable.yml@main
+#       secrets: inherit          # CC_TEST_TOKEN, if this repository cannot read CC-Test
+#
+# Drift (HEAD ahead of the validated commit) is a warning by default and a failure with
+# strict: true. To refresh the file's last line, run in the product repository:
+#   python <cc-test>/correctness/check_validation.py check --evidence-dir <cc-test>/evidence --refresh
+name: Validation status
+
+on:
+  workflow_call:
+    inputs:
+      validation_file:
+        description: path of the product's VALIDATION.md
+        type: string
+        default: VALIDATION.md
+      cc_test_ref:
+        description: the CC-Test ref whose evidence/ is the authority
+        type: string
+        default: main
+      strict:
+        description: fail when the drift line is missing or stale
+        type: boolean
+        default: false
+    secrets:
+      CC_TEST_TOKEN:
+        description: a token that can read CC-Test, when the caller's GITHUB_TOKEN cannot
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: The product, with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # commits ahead of the validated commit are counted
+
+      - name: CC-Test, for its records
+        uses: actions/checkout@v4
+        with:
+          repository: a85tract/CESM-CC-Test
+          ref: ${{ inputs.cc_test_ref }}
+          path: .cc-test
+          token: ${{ secrets.CC_TEST_TOKEN || github.token }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: VALIDATION.md against the record it names
+        run: |
+          python .cc-test/correctness/check_validation.py check \
+            --validation "${{ inputs.validation_file }}" \
+            --product-repo . \
+            --evidence-dir .cc-test/evidence \
+            ${{ inputs.strict && '--strict' || '' }}

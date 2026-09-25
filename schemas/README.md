@@ -1,11 +1,11 @@
 # CC-Test schemas
 
-Machine-readable definition of what an evidence package is. See
+Machine-readable definition of what an acceptance record is. See
 `../docs/VALIDATION-ARCHITECTURE.md` for the architecture these schemas serve.
 
 | File | Purpose |
 |---|---|
-| `evidence-manifest.v1.json` | The evidence package itself: artifact, reference, environment, cases, result |
+| `evidence-manifest.v1.json` | The manifest of an acceptance record (`evidence/<product>/<version>/manifest.json`): artifact, reference, environment, cases, result |
 | `acceptance.v1.json` | The acceptance criteria vocabulary, referenced from each case |
 | `examples/example-bitwise.manifest.json` | Format example. Not evidence — see the `notes` field |
 | `test_schemas.py` | Self-test: the example must validate, and twelve deliberate mutations must be rejected |
@@ -48,6 +48,19 @@ omit them and is reported as a format example, never counted as compliance evide
 either a release tag (`v0.2.0`) or the bridge form `unreleased-<commit[:8]>`; `commit` is
 authoritative in both cases. See decision D2.
 
+**Unit-differential acceptance reads the engine's summary.** A `unit-differential` block
+names the RecastEngine summary schema it is written against (`summary_schema: 1`, the
+`schema` field of `recast run --summary`) and rules over the verdicts recorded there:
+`unit_set_equal` (always gating — a PASS over fewer units than the benchmark names is the
+cheapest path to green), `confidence_at_least` on the engine's ladder, `ulp_tiered` (the
+JAX criterion decision D4 settled on 2026-09-24 from what `recast.verify.tolerance`
+enforces: dominant elements within `ulp_gate`, every element within `rel_gate`, per-unit
+`waivers` written in the benchmark with a reason), and `nan_mask_equal`. `make_manifest.py`
+requires the gate the verifier recorded to equal the benchmark's, so a run and a
+benchmark that describe different criteria cannot yield a PASS. The engine's own
+per-verdict files are `recast.evidence.v1` records, a different document; CC-Test never
+reads those.
+
 **Statistical acceptance is provisional and blocked.** `acceptance.v1.json` defines
 placeholder rules for Pipeline 2 derived from the dashboard figures, but the tolerance
 semantics, norm, compared variable set and spread test are not agreed (decision D4). The
@@ -76,8 +89,9 @@ branch (8). Each is then reported as `SKIP` with the reason rather than counted 
 6. `cases[].benchmark` names a file that exists in this repository, and `cases[].id`
    equals that file's stem.
 7. `cc_test.commit` resolves in this repository.
-8. `evidence/` is append-only: a manifest already present on the base branch must not be
-   modified by a pull request.
+8. `evidence/` is append-only: no file of an acceptance record already on the base branch
+   (`evidence/<product>/<version>/*`) may be modified, deleted or renamed by a pull request.
+   `INDEX.md`, `index.json` and `README.md` are not records and are exempt.
 9. `acceptance.kind: statistical` is rejected while its `status` is `provisional`.
 10. `security.scanned_commit` equals `artifact.commit` — otherwise the Cyber verdict
     describes different code than the correctness verdict.

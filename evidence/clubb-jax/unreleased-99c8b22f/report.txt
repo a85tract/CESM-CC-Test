@@ -1,0 +1,714 @@
+clubb-jax unreleased-99c8b22f -- the engine's verdicts, one line per unit and verifier, from the 15 summaries
+(summaries/<case>.json at clubb-jax 99c8b22f, RecastEngine e3c6717). Ungated units and waivers are in benchmarks/clubb-jax/.
+
+== cases-e3sm-jax  (recipe port-clubb, 13 units)
+  fortran:advance_clubb_core_module        differential.tolerance   toleranced   points=260720 bit_exact=260610 max_ulp=512 max_ulp_dominant=128 max_rel=2.4825996890188974e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             a dominant element is 128 ULP out (gate 32) and max_rel=2.483e-15 (gate 1e-12), both inside the reference's own spread under its transcendentals' measured ULP envelope (42613738 ULP, 1.000e+00 relativ
+  fortran:advance_windm_edsclrm_module     differential.tolerance   bit_exact    points=17540 bit_exact=17540 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             17540 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_wp2_wp3_module           differential.tolerance   bit_exact    points=7040 bit_exact=7040 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             7040 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xm_wpxp_module           differential.tolerance   bit_exact    points=21100 bit_exact=21100 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             21100 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xp2_xpyp_module          differential.tolerance   bit_exact    points=8820 bit_exact=8820 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             8820 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by bomex-e3sm_maint32; recorded on a case th
+  fortran:advance_xp3_module               differential.tolerance   bit_exact    points=6960 bit_exact=6960 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             6960 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by bomex-e3sm_maint32; recorded on a case that
+  fortran:clip_explicit                    differential.tolerance   bit_exact    points=15880 bit_exact=15880 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             15880 points across 4 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled in
+  fortran:mixing_length                    differential.tolerance   bit_exact    points=31540 bit_exact=31540 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             31540 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers; 3 subprogram(s) ungated, no reference: diagnose_lscale_from_tau (not reached by bomex-e3sm_maint32; recorded 
+  fortran:mono_flux_limiter                differential.tolerance   bit_exact    points=3480 bit_exact=3480 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             3480 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: monotonic_turbulent_flux_limit (not reached by bomex-e3sm_maint32; reco
+  fortran:new_hybrid_pdf_main              stopped_by=dump-replay, no verdict
+  fortran:new_pdf_main                     stopped_by=dump-replay, no verdict
+  fortran:pdf_closure_module               differential.tolerance   toleranced   points=356960 bit_exact=356850 max_ulp=512 max_ulp_dominant=128 max_rel=2.4825996890188974e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             a dominant element is 128 ULP out (gate 32) and max_rel=2.483e-15 (gate 1e-12), both inside the reference's own spread under its transcendentals' measured ULP envelope (17201248 ULP, 2.414e-10 relativ
+  fortran:sponge_layer_damping             stopped_by=dump-replay, no verdict
+
+== cases-e3sm-numpy  (recipe translate-clubb, 13 units)
+  fortran:advance_clubb_core_module        static.rwset             sampled      
+                                             29 blocks match; waived advance_clubb_core/B027: framework stub: stats_accumulate, stats_finalize_budget
+  fortran:advance_clubb_core_module        differential.bitexact    bit_exact    points=260720 bit_exact=260720 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             260720 points across 1 subprogram(s), all bit-exact
+  fortran:advance_clubb_core_module        symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_windm_edsclrm_module     static.rwset             sampled      
+                                             40 blocks match
+  fortran:advance_windm_edsclrm_module     differential.bitexact    bit_exact    points=17540 bit_exact=17540 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             17540 points across 1 subprogram(s), all bit-exact
+  fortran:advance_windm_edsclrm_module     symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_wp2_wp3_module           static.rwset             sampled      
+                                             165 blocks match; waived advance_wp2_wp3/B008: framework stub: stats_update; advance_wp2_wp3/B015: framework stub: stats_update; advance_wp2_wp3/B062: framework stub: stats_update; wp23_solve/B011: fr
+  fortran:advance_wp2_wp3_module           differential.bitexact    bit_exact    points=7040 bit_exact=7040 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             7040 points across 1 subprogram(s), all bit-exact
+  fortran:advance_wp2_wp3_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xm_wpxp_module           static.rwset             sampled      
+                                             195 blocks match; waived advance_xm_wpxp/B011: framework stub: stats_update; advance_xm_wpxp/B017: framework stub: stats_update; calc_xm_wpxp_ta_terms/B002: framework stub: stats_update; xm_wpxp_clipp
+  fortran:advance_xm_wpxp_module           differential.bitexact    bit_exact    points=21100 bit_exact=21100 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             21100 points across 1 subprogram(s), all bit-exact
+  fortran:advance_xm_wpxp_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp2_xpyp_module          static.rwset             sampled      
+                                             150 blocks match; waived advance_xp2_xpyp/B028: framework stub: stats_begin_budget; advance_xp2_xpyp/B030: framework stub: stats_finalize_budget; advance_xp2_xpyp/B033: framework stub: stats_begin_bud
+  fortran:advance_xp2_xpyp_module          differential.bitexact    bit_exact    points=8820 bit_exact=8820 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             8820 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by bomex-e3sm_maint32; recorded on a case that takes it), update_xp2_mc_flat (not r
+  fortran:advance_xp2_xpyp_module          symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp3_module               static.rwset             sampled      
+                                             43 blocks match; waived advance_xp3/B020: framework stub: stats_update; diagnose_xp3/B012: framework stub: stats_update; advance_xp3_simplified/B002: framework stub: stats_begin_budget; advance_xp3_si
+  fortran:advance_xp3_module               differential.bitexact    bit_exact    points=6960 bit_exact=6960 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             6960 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by bomex-e3sm_maint32; recorded on a case that takes it), advance_xp3_flat (not reach
+  fortran:advance_xp3_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:clip_explicit                    static.rwset             sampled      
+                                             32 blocks match; waived clip_covars_denom/B001: framework stub: stats_begin_budget, stats_update_budget; clip_covars_denom/B013: framework stub: stats_finalize_budget, stats_update_budget; clip_varian
+  fortran:clip_explicit                    differential.bitexact    bit_exact    points=15880 bit_exact=15880 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             15880 points across 4 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled inputs by fortran_clip_explicit.sampled.j
+  fortran:clip_explicit                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mixing_length                    static.rwset             sampled      
+                                             67 blocks match; waived calc_lscale/B003: framework stub: stats_update; calc_lscale/B005: framework stub: stats_update; calc_lscale/B012: framework stub: stats_update; calc_lscale_directly/B003: frame
+  fortran:mixing_length                    differential.bitexact    bit_exact    points=31540 bit_exact=31540 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             31540 points across 2 subprogram(s), all bit-exact; 3 subprogram(s) ungated, no reference: diagnose_lscale_from_tau (not reached by bomex-e3sm_maint32; recorded on a case that takes it), diagnose_lsca
+  fortran:mixing_length                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mono_flux_limiter                static.rwset             sampled      
+                                             49 blocks match; waived monotonic_turbulent_flux_limit/B014: framework stub: stats_begin_budget, stats_update; mean_vert_vel_up_down/B005: framework stub: stats_update
+  fortran:mono_flux_limiter                differential.bitexact    bit_exact    points=3480 bit_exact=3480 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             3480 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: monotonic_turbulent_flux_limit (not reached by bomex-e3sm_maint32; recorded on a case that takes it), monotoni
+  fortran:mono_flux_limiter                symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_hybrid_pdf_main              static.rwset             sampled      
+                                             21 blocks match
+  fortran:new_pdf_main                     static.rwset             sampled      
+                                             15 blocks match
+  fortran:pdf_closure_module               static.rwset             sampled      
+                                             156 blocks match
+  fortran:pdf_closure_module               differential.bitexact    bit_exact    points=356960 bit_exact=356960 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             356960 points across 2 subprogram(s), all bit-exact; 5 subprogram(s) ungated, no reference: calc_w_up_in_cloud (no derived-type dummy, so no probe: compared on sampled inputs by fortran_pdf_closure_mo
+  fortran:pdf_closure_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:sponge_layer_damping             static.rwset             sampled      
+                                             14 blocks match
+
+== cases-late-jax  (recipe port-clubb, 13 units)
+  fortran:advance_clubb_core_module        differential.tolerance   toleranced   points=260720 bit_exact=260354 max_ulp=128 max_ulp_dominant=128 max_rel=4.851718574329204e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             a dominant element is 128 ULP out (gate 32) and max_rel=4.852e-15 (gate 1e-12), both inside the reference's own spread under its transcendentals' measured ULP envelope (39092448 ULP, 6.752e-10 relativ
+  fortran:advance_windm_edsclrm_module     differential.tolerance   bit_exact    points=17540 bit_exact=17540 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             17540 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_wp2_wp3_module           differential.tolerance   bit_exact    points=7040 bit_exact=7040 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             7040 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xm_wpxp_module           differential.tolerance   bit_exact    points=21100 bit_exact=21100 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             21100 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xp2_xpyp_module          differential.tolerance   bit_exact    points=8820 bit_exact=8820 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             8820 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by bomex; recorded on a case that takes it),
+  fortran:advance_xp3_module               differential.tolerance   bit_exact    points=6960 bit_exact=6960 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             6960 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by bomex; recorded on a case that takes it), a
+  fortran:clip_explicit                    differential.tolerance   bit_exact    points=15880 bit_exact=15880 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             15880 points across 4 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled in
+  fortran:mixing_length                    differential.tolerance   bit_exact    points=31540 bit_exact=31540 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             31540 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers; 3 subprogram(s) ungated, no reference: diagnose_lscale_from_tau (not reached by bomex; recorded on a case tha
+  fortran:mono_flux_limiter                differential.tolerance   bit_exact    points=7000 bit_exact=7000 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             7000 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:new_hybrid_pdf_main              stopped_by=dump-replay, no verdict
+  fortran:new_pdf_main                     stopped_by=dump-replay, no verdict
+  fortran:pdf_closure_module               differential.tolerance   toleranced   points=389240 bit_exact=388549 max_ulp=192 max_ulp_dominant=192 max_rel=4.851718574329204e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             a dominant element is 192 ULP out (gate 32) and max_rel=4.852e-15 (gate 1e-12), both inside the reference's own spread under its transcendentals' measured ULP envelope (39049408 ULP, 3.678e-10 relativ
+  fortran:sponge_layer_damping             stopped_by=dump-replay, no verdict
+
+== cases-late-numpy  (recipe translate-clubb, 13 units)
+  fortran:advance_clubb_core_module        static.rwset             sampled      
+                                             29 blocks match; waived advance_clubb_core/B027: framework stub: stats_accumulate, stats_finalize_budget
+  fortran:advance_clubb_core_module        differential.bitexact    bit_exact    points=260720 bit_exact=260720 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             260720 points across 1 subprogram(s), all bit-exact
+  fortran:advance_clubb_core_module        symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_windm_edsclrm_module     static.rwset             sampled      
+                                             40 blocks match
+  fortran:advance_windm_edsclrm_module     differential.bitexact    bit_exact    points=17540 bit_exact=17540 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             17540 points across 1 subprogram(s), all bit-exact
+  fortran:advance_windm_edsclrm_module     symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_wp2_wp3_module           static.rwset             sampled      
+                                             165 blocks match; waived advance_wp2_wp3/B008: framework stub: stats_update; advance_wp2_wp3/B015: framework stub: stats_update; advance_wp2_wp3/B062: framework stub: stats_update; wp23_solve/B011: fr
+  fortran:advance_wp2_wp3_module           differential.bitexact    bit_exact    points=7040 bit_exact=7040 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             7040 points across 1 subprogram(s), all bit-exact
+  fortran:advance_wp2_wp3_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xm_wpxp_module           static.rwset             sampled      
+                                             195 blocks match; waived advance_xm_wpxp/B011: framework stub: stats_update; advance_xm_wpxp/B017: framework stub: stats_update; calc_xm_wpxp_ta_terms/B002: framework stub: stats_update; xm_wpxp_clipp
+  fortran:advance_xm_wpxp_module           differential.bitexact    bit_exact    points=21100 bit_exact=21100 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             21100 points across 1 subprogram(s), all bit-exact
+  fortran:advance_xm_wpxp_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp2_xpyp_module          static.rwset             sampled      
+                                             150 blocks match; waived advance_xp2_xpyp/B028: framework stub: stats_begin_budget; advance_xp2_xpyp/B030: framework stub: stats_finalize_budget; advance_xp2_xpyp/B033: framework stub: stats_begin_bud
+  fortran:advance_xp2_xpyp_module          differential.bitexact    bit_exact    points=8820 bit_exact=8820 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             8820 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by bomex; recorded on a case that takes it), update_xp2_mc_flat (not reached by bom
+  fortran:advance_xp2_xpyp_module          symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp3_module               static.rwset             sampled      
+                                             43 blocks match; waived advance_xp3/B020: framework stub: stats_update; diagnose_xp3/B012: framework stub: stats_update; advance_xp3_simplified/B002: framework stub: stats_begin_budget; advance_xp3_si
+  fortran:advance_xp3_module               differential.bitexact    bit_exact    points=6960 bit_exact=6960 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             6960 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by bomex; recorded on a case that takes it), advance_xp3_flat (not reached by bomex; 
+  fortran:advance_xp3_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:clip_explicit                    static.rwset             sampled      
+                                             32 blocks match; waived clip_covars_denom/B001: framework stub: stats_begin_budget, stats_update_budget; clip_covars_denom/B013: framework stub: stats_finalize_budget, stats_update_budget; clip_varian
+  fortran:clip_explicit                    differential.bitexact    bit_exact    points=15880 bit_exact=15880 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             15880 points across 4 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled inputs by fortran_clip_explicit.sampled.j
+  fortran:clip_explicit                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mixing_length                    static.rwset             sampled      
+                                             67 blocks match; waived calc_lscale/B003: framework stub: stats_update; calc_lscale/B005: framework stub: stats_update; calc_lscale/B012: framework stub: stats_update; calc_lscale_directly/B003: frame
+  fortran:mixing_length                    differential.bitexact    bit_exact    points=31540 bit_exact=31540 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             31540 points across 2 subprogram(s), all bit-exact; 3 subprogram(s) ungated, no reference: diagnose_lscale_from_tau (not reached by bomex; recorded on a case that takes it), diagnose_lscale_from_tau_f
+  fortran:mixing_length                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mono_flux_limiter                static.rwset             sampled      
+                                             49 blocks match; waived monotonic_turbulent_flux_limit/B014: framework stub: stats_begin_budget, stats_update; mean_vert_vel_up_down/B005: framework stub: stats_update
+  fortran:mono_flux_limiter                differential.bitexact    bit_exact    points=7000 bit_exact=7000 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             7000 points across 2 subprogram(s), all bit-exact
+  fortran:mono_flux_limiter                symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_hybrid_pdf_main              static.rwset             sampled      
+                                             21 blocks match
+  fortran:new_pdf_main                     static.rwset             sampled      
+                                             15 blocks match
+  fortran:pdf_closure_module               static.rwset             sampled      
+                                             156 blocks match
+  fortran:pdf_closure_module               differential.bitexact    bit_exact    points=389240 bit_exact=389240 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             389240 points across 2 subprogram(s), all bit-exact; 5 subprogram(s) ungated, no reference: calc_w_up_in_cloud (no derived-type dummy, so no probe: compared on sampled inputs by fortran_pdf_closure_mo
+  fortran:pdf_closure_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:sponge_layer_damping             static.rwset             sampled      
+                                             14 blocks match
+
+== cases-more-jax  (recipe port-clubb, 13 units)
+  fortran:advance_clubb_core_module        differential.tolerance   toleranced   points=584200 bit_exact=583942 max_ulp=64 max_ulp_dominant=28 max_rel=1.758475559917582e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             465654 dominant point(s) within 28 ULP (gate 32); the tail reaches 64 ULP but max_rel=1.758e-15 is inside rel_gate=1e-12
+  fortran:advance_windm_edsclrm_module     differential.tolerance   bit_exact    points=34880 bit_exact=34880 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             34880 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_wp2_wp3_module           differential.tolerance   bit_exact    points=14000 bit_exact=14000 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             14000 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xm_wpxp_module           differential.tolerance   bit_exact    points=41960 bit_exact=41960 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             41960 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xp2_xpyp_module          differential.tolerance   bit_exact    points=17540 bit_exact=17540 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             17540 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by arm-hybridpdf, dycoms2_rf02_nd-hybridpdf
+  fortran:advance_xp3_module               differential.tolerance   ulp_bounded  points=13840 bit_exact=13722 max_ulp=8 max_ulp_dominant=4 max_rel=5.153529270226874e-16 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             every one of 13840 points within 8 ULP (gate 32); 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by arm-hybridpdf, dycoms2_rf02_nd-hybridpdf; recorded on a case that takes it), advanc
+  fortran:clip_explicit                    differential.tolerance   bit_exact    points=31580 bit_exact=31580 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             31580 points across 4 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled in
+  fortran:mixing_length                    differential.tolerance   bit_exact    points=118560 bit_exact=118560 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             118560 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers; 3 subprogram(s) ungated, no reference: calc_lscale_directly (not reached by arm-hybridpdf, dycoms2_rf02_nd-h
+  fortran:mono_flux_limiter                differential.tolerance   bit_exact    points=13920 bit_exact=13920 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             13920 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:new_hybrid_pdf_main              differential.tolerance   bit_exact    points=155700 bit_exact=155700 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             155700 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:new_pdf_main                     stopped_by=dump-replay, no verdict
+  fortran:pdf_closure_module               differential.tolerance   toleranced   points=839760 bit_exact=839668 max_ulp=64 max_ulp_dominant=32 max_rel=4.620561945119988e-16 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             657350 dominant point(s) within 32 ULP (gate 32); the tail reaches 64 ULP but max_rel=4.621e-16 is inside rel_gate=1e-12; 5 subprogram(s) ungated, no reference: calc_w_up_in_cloud (no derived-type dum
+  fortran:sponge_layer_damping             stopped_by=dump-replay, no verdict
+
+== cases-more-numpy  (recipe translate-clubb, 13 units)
+  fortran:advance_clubb_core_module        static.rwset             sampled      
+                                             29 blocks match; waived advance_clubb_core/B027: framework stub: stats_accumulate, stats_finalize_budget
+  fortran:advance_clubb_core_module        differential.bitexact    bit_exact    points=584200 bit_exact=584200 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             584200 points across 1 subprogram(s), all bit-exact
+  fortran:advance_clubb_core_module        symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_windm_edsclrm_module     static.rwset             sampled      
+                                             40 blocks match
+  fortran:advance_windm_edsclrm_module     differential.bitexact    bit_exact    points=34880 bit_exact=34880 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             34880 points across 1 subprogram(s), all bit-exact
+  fortran:advance_windm_edsclrm_module     symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_wp2_wp3_module           static.rwset             sampled      
+                                             165 blocks match; waived advance_wp2_wp3/B008: framework stub: stats_update; advance_wp2_wp3/B015: framework stub: stats_update; advance_wp2_wp3/B062: framework stub: stats_update; wp23_solve/B011: fr
+  fortran:advance_wp2_wp3_module           differential.bitexact    bit_exact    points=14000 bit_exact=14000 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             14000 points across 1 subprogram(s), all bit-exact
+  fortran:advance_wp2_wp3_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xm_wpxp_module           static.rwset             sampled      
+                                             195 blocks match; waived advance_xm_wpxp/B011: framework stub: stats_update; advance_xm_wpxp/B017: framework stub: stats_update; calc_xm_wpxp_ta_terms/B002: framework stub: stats_update; xm_wpxp_clipp
+  fortran:advance_xm_wpxp_module           differential.bitexact    bit_exact    points=41960 bit_exact=41960 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             41960 points across 1 subprogram(s), all bit-exact
+  fortran:advance_xm_wpxp_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp2_xpyp_module          static.rwset             sampled      
+                                             150 blocks match; waived advance_xp2_xpyp/B028: framework stub: stats_begin_budget; advance_xp2_xpyp/B030: framework stub: stats_finalize_budget; advance_xp2_xpyp/B033: framework stub: stats_begin_bud
+  fortran:advance_xp2_xpyp_module          differential.bitexact    bit_exact    points=17540 bit_exact=17540 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             17540 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by arm-hybridpdf, dycoms2_rf02_nd-hybridpdf; recorded on a case that takes it), up
+  fortran:advance_xp2_xpyp_module          symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp3_module               static.rwset             sampled      
+                                             43 blocks match; waived advance_xp3/B020: framework stub: stats_update; diagnose_xp3/B012: framework stub: stats_update; advance_xp3_simplified/B002: framework stub: stats_begin_budget; advance_xp3_si
+  fortran:advance_xp3_module               differential.bitexact    bit_exact    points=13840 bit_exact=13840 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             13840 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by arm-hybridpdf, dycoms2_rf02_nd-hybridpdf; recorded on a case that takes it), adva
+  fortran:advance_xp3_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:clip_explicit                    static.rwset             sampled      
+                                             32 blocks match; waived clip_covars_denom/B001: framework stub: stats_begin_budget, stats_update_budget; clip_covars_denom/B013: framework stub: stats_finalize_budget, stats_update_budget; clip_varian
+  fortran:clip_explicit                    differential.bitexact    bit_exact    points=31580 bit_exact=31580 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             31580 points across 4 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled inputs by fortran_clip_explicit.sampled.j
+  fortran:clip_explicit                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mixing_length                    static.rwset             sampled      
+                                             67 blocks match; waived calc_lscale/B003: framework stub: stats_update; calc_lscale/B005: framework stub: stats_update; calc_lscale/B012: framework stub: stats_update; calc_lscale_directly/B003: frame
+  fortran:mixing_length                    differential.bitexact    bit_exact    points=118560 bit_exact=118560 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             118560 points across 2 subprogram(s), all bit-exact; 3 subprogram(s) ungated, no reference: calc_lscale_directly (not reached by arm-hybridpdf, dycoms2_rf02_nd-hybridpdf; recorded on a case that takes
+  fortran:mixing_length                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mono_flux_limiter                static.rwset             sampled      
+                                             49 blocks match; waived monotonic_turbulent_flux_limit/B014: framework stub: stats_begin_budget, stats_update; mean_vert_vel_up_down/B005: framework stub: stats_update
+  fortran:mono_flux_limiter                differential.bitexact    bit_exact    points=13920 bit_exact=13920 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             13920 points across 2 subprogram(s), all bit-exact
+  fortran:mono_flux_limiter                symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_hybrid_pdf_main              static.rwset             sampled      
+                                             21 blocks match
+  fortran:new_hybrid_pdf_main              differential.bitexact    bit_exact    points=155700 bit_exact=155700 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             155700 points across 1 subprogram(s), all bit-exact
+  fortran:new_hybrid_pdf_main              symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_pdf_main                     static.rwset             sampled      
+                                             15 blocks match
+  fortran:pdf_closure_module               static.rwset             sampled      
+                                             156 blocks match
+  fortran:pdf_closure_module               differential.bitexact    bit_exact    points=839760 bit_exact=839760 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             839760 points across 2 subprogram(s), all bit-exact; 5 subprogram(s) ungated, no reference: calc_w_up_in_cloud (no derived-type dummy, so no probe: compared on sampled inputs by fortran_pdf_closure_mo
+  fortran:pdf_closure_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:sponge_layer_damping             static.rwset             sampled      
+                                             14 blocks match
+
+== cases-multicol-jax  (recipe port-clubb, 13 units)
+  fortran:advance_clubb_core_module        differential.tolerance   toleranced   points=1042880 bit_exact=1042390 max_ulp=128 max_ulp_dominant=64 max_rel=6.0487630495667335e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             a dominant element is 64 ULP out (gate 32) and max_rel=6.049e-15 (gate 1e-12), both inside the reference's own spread under its transcendentals' measured ULP envelope (44478880 ULP, 1.000e+00 relative
+  fortran:advance_windm_edsclrm_module     differential.tolerance   bit_exact    points=70040 bit_exact=70040 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             70040 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_wp2_wp3_module           differential.tolerance   bit_exact    points=28160 bit_exact=28160 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             28160 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xm_wpxp_module           differential.tolerance   bit_exact    points=84160 bit_exact=84160 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             84160 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xp2_xpyp_module          differential.tolerance   bit_exact    points=35280 bit_exact=35280 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             35280 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by bomex; recorded on a case that takes it)
+  fortran:advance_xp3_module               differential.tolerance   bit_exact    points=27840 bit_exact=27840 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             27840 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by bomex; recorded on a case that takes it), 
+  fortran:clip_explicit                    differential.tolerance   bit_exact    points=63280 bit_exact=63280 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             63280 points across 4 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled in
+  fortran:mixing_length                    differential.tolerance   bit_exact    points=126160 bit_exact=126160 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             126160 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers; 3 subprogram(s) ungated, no reference: diagnose_lscale_from_tau (not reached by bomex; recorded on a case th
+  fortran:mono_flux_limiter                differential.tolerance   bit_exact    points=28000 bit_exact=28000 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             28000 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:new_hybrid_pdf_main              stopped_by=dump-replay, no verdict
+  fortran:new_pdf_main                     stopped_by=dump-replay, no verdict
+  fortran:pdf_closure_module               differential.tolerance   toleranced   points=1556960 bit_exact=1556034 max_ulp=128 max_ulp_dominant=64 max_rel=6.0487630495667335e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             a dominant element is 64 ULP out (gate 32) and max_rel=6.049e-15 (gate 1e-12), both inside the reference's own spread under its transcendentals' measured ULP envelope (44228480 ULP, 2.717e-09 relative
+  fortran:sponge_layer_damping             stopped_by=dump-replay, no verdict
+
+== cases-multicol-numpy  (recipe translate-clubb, 13 units)
+  fortran:advance_clubb_core_module        static.rwset             sampled      
+                                             29 blocks match; waived advance_clubb_core/B027: framework stub: stats_accumulate, stats_finalize_budget
+  fortran:advance_clubb_core_module        differential.bitexact    bit_exact    points=1042880 bit_exact=1042880 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1042880 points across 1 subprogram(s), all bit-exact
+  fortran:advance_clubb_core_module        symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_windm_edsclrm_module     static.rwset             sampled      
+                                             40 blocks match
+  fortran:advance_windm_edsclrm_module     differential.bitexact    bit_exact    points=70040 bit_exact=70040 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             70040 points across 1 subprogram(s), all bit-exact
+  fortran:advance_windm_edsclrm_module     symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_wp2_wp3_module           static.rwset             sampled      
+                                             165 blocks match; waived advance_wp2_wp3/B008: framework stub: stats_update; advance_wp2_wp3/B015: framework stub: stats_update; advance_wp2_wp3/B062: framework stub: stats_update; wp23_solve/B011: fr
+  fortran:advance_wp2_wp3_module           differential.bitexact    bit_exact    points=28160 bit_exact=28160 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             28160 points across 1 subprogram(s), all bit-exact
+  fortran:advance_wp2_wp3_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xm_wpxp_module           static.rwset             sampled      
+                                             195 blocks match; waived advance_xm_wpxp/B011: framework stub: stats_update; advance_xm_wpxp/B017: framework stub: stats_update; calc_xm_wpxp_ta_terms/B002: framework stub: stats_update; xm_wpxp_clipp
+  fortran:advance_xm_wpxp_module           differential.bitexact    bit_exact    points=84160 bit_exact=84160 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             84160 points across 1 subprogram(s), all bit-exact
+  fortran:advance_xm_wpxp_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp2_xpyp_module          static.rwset             sampled      
+                                             150 blocks match; waived advance_xp2_xpyp/B028: framework stub: stats_begin_budget; advance_xp2_xpyp/B030: framework stub: stats_finalize_budget; advance_xp2_xpyp/B033: framework stub: stats_begin_bud
+  fortran:advance_xp2_xpyp_module          differential.bitexact    bit_exact    points=35280 bit_exact=35280 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             35280 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by bomex; recorded on a case that takes it), update_xp2_mc_flat (not reached by bo
+  fortran:advance_xp2_xpyp_module          symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp3_module               static.rwset             sampled      
+                                             43 blocks match; waived advance_xp3/B020: framework stub: stats_update; diagnose_xp3/B012: framework stub: stats_update; advance_xp3_simplified/B002: framework stub: stats_begin_budget; advance_xp3_si
+  fortran:advance_xp3_module               differential.bitexact    bit_exact    points=27840 bit_exact=27840 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             27840 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by bomex; recorded on a case that takes it), advance_xp3_flat (not reached by bomex;
+  fortran:advance_xp3_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:clip_explicit                    static.rwset             sampled      
+                                             32 blocks match; waived clip_covars_denom/B001: framework stub: stats_begin_budget, stats_update_budget; clip_covars_denom/B013: framework stub: stats_finalize_budget, stats_update_budget; clip_varian
+  fortran:clip_explicit                    differential.bitexact    bit_exact    points=63280 bit_exact=63280 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             63280 points across 4 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled inputs by fortran_clip_explicit.sampled.j
+  fortran:clip_explicit                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mixing_length                    static.rwset             sampled      
+                                             67 blocks match; waived calc_lscale/B003: framework stub: stats_update; calc_lscale/B005: framework stub: stats_update; calc_lscale/B012: framework stub: stats_update; calc_lscale_directly/B003: frame
+  fortran:mixing_length                    differential.bitexact    bit_exact    points=126160 bit_exact=126160 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             126160 points across 2 subprogram(s), all bit-exact; 3 subprogram(s) ungated, no reference: diagnose_lscale_from_tau (not reached by bomex; recorded on a case that takes it), diagnose_lscale_from_tau_
+  fortran:mixing_length                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mono_flux_limiter                static.rwset             sampled      
+                                             49 blocks match; waived monotonic_turbulent_flux_limit/B014: framework stub: stats_begin_budget, stats_update; mean_vert_vel_up_down/B005: framework stub: stats_update
+  fortran:mono_flux_limiter                differential.bitexact    bit_exact    points=28000 bit_exact=28000 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             28000 points across 2 subprogram(s), all bit-exact
+  fortran:mono_flux_limiter                symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_hybrid_pdf_main              static.rwset             sampled      
+                                             21 blocks match
+  fortran:new_pdf_main                     static.rwset             sampled      
+                                             15 blocks match
+  fortran:pdf_closure_module               static.rwset             sampled      
+                                             156 blocks match
+  fortran:pdf_closure_module               differential.bitexact    bit_exact    points=1556960 bit_exact=1556960 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1556960 points across 2 subprogram(s), all bit-exact; 5 subprogram(s) ungated, no reference: calc_w_up_in_cloud (no derived-type dummy, so no probe: compared on sampled inputs by fortran_pdf_closure_m
+  fortran:pdf_closure_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:sponge_layer_damping             static.rwset             sampled      
+                                             14 blocks match
+
+== cases-scalars-jax  (recipe port-clubb, 13 units)
+  fortran:advance_clubb_core_module        differential.tolerance   ulp_bounded  points=660830 bit_exact=660756 max_ulp=32 max_ulp_dominant=32 max_rel=4.242213098250515e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             every one of 660830 points within 32 ULP (gate 32)
+  fortran:advance_windm_edsclrm_module     differential.tolerance   bit_exact    points=56090 bit_exact=56090 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             56090 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_wp2_wp3_module           differential.tolerance   bit_exact    points=16040 bit_exact=16040 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             16040 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xm_wpxp_module           differential.tolerance   bit_exact    points=64130 bit_exact=64130 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             64130 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xp2_xpyp_module          differential.tolerance   bit_exact    points=44120 bit_exact=44120 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             44120 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by gabls2; recorded on a case that takes it
+  fortran:advance_xp3_module               differential.tolerance   bit_exact    points=24000 bit_exact=24000 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             24000 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by gabls2; recorded on a case that takes it),
+  fortran:clip_explicit                    differential.tolerance   bit_exact    points=44130 bit_exact=44130 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             44130 points across 4 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled in
+  fortran:mixing_length                    differential.tolerance   bit_exact    points=72110 bit_exact=72110 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             72110 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers; 3 subprogram(s) ungated, no reference: diagnose_lscale_from_tau (not reached by gabls2; recorded on a case th
+  fortran:mono_flux_limiter                differential.tolerance   bit_exact    points=16020 bit_exact=16020 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             16020 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:new_hybrid_pdf_main              stopped_by=dump-replay, no verdict
+  fortran:new_pdf_main                     stopped_by=dump-replay, no verdict
+  fortran:pdf_closure_module               differential.tolerance   toleranced   points=1044630 bit_exact=1044486 max_ulp=34 max_ulp_dominant=32 max_rel=4.242213098250515e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             660947 dominant point(s) within 32 ULP (gate 32); the tail reaches 34 ULP but max_rel=4.242e-15 is inside rel_gate=1e-12; 5 subprogram(s) ungated, no reference: calc_w_up_in_cloud (no derived-type dum
+  fortran:sponge_layer_damping             stopped_by=dump-replay, no verdict
+
+== cases-scalars-numpy  (recipe translate-clubb, 13 units)
+  fortran:advance_clubb_core_module        static.rwset             sampled      
+                                             29 blocks match; waived advance_clubb_core/B027: framework stub: stats_accumulate, stats_finalize_budget
+  fortran:advance_clubb_core_module        differential.bitexact    bit_exact    points=660830 bit_exact=660830 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             660830 points across 1 subprogram(s), all bit-exact
+  fortran:advance_clubb_core_module        symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_windm_edsclrm_module     static.rwset             sampled      
+                                             40 blocks match
+  fortran:advance_windm_edsclrm_module     differential.bitexact    bit_exact    points=56090 bit_exact=56090 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             56090 points across 1 subprogram(s), all bit-exact
+  fortran:advance_windm_edsclrm_module     symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_wp2_wp3_module           static.rwset             sampled      
+                                             165 blocks match; waived advance_wp2_wp3/B008: framework stub: stats_update; advance_wp2_wp3/B015: framework stub: stats_update; advance_wp2_wp3/B062: framework stub: stats_update; wp23_solve/B011: fr
+  fortran:advance_wp2_wp3_module           differential.bitexact    bit_exact    points=16040 bit_exact=16040 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             16040 points across 1 subprogram(s), all bit-exact
+  fortran:advance_wp2_wp3_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xm_wpxp_module           static.rwset             sampled      
+                                             195 blocks match; waived advance_xm_wpxp/B011: framework stub: stats_update; advance_xm_wpxp/B017: framework stub: stats_update; calc_xm_wpxp_ta_terms/B002: framework stub: stats_update; xm_wpxp_clipp
+  fortran:advance_xm_wpxp_module           differential.bitexact    bit_exact    points=64130 bit_exact=64130 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             64130 points across 1 subprogram(s), all bit-exact
+  fortran:advance_xm_wpxp_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp2_xpyp_module          static.rwset             sampled      
+                                             150 blocks match; waived advance_xp2_xpyp/B028: framework stub: stats_begin_budget; advance_xp2_xpyp/B030: framework stub: stats_finalize_budget; advance_xp2_xpyp/B033: framework stub: stats_begin_bud
+  fortran:advance_xp2_xpyp_module          differential.bitexact    bit_exact    points=44120 bit_exact=44120 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             44120 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by gabls2; recorded on a case that takes it), update_xp2_mc_flat (not reached by g
+  fortran:advance_xp2_xpyp_module          symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp3_module               static.rwset             sampled      
+                                             43 blocks match; waived advance_xp3/B020: framework stub: stats_update; diagnose_xp3/B012: framework stub: stats_update; advance_xp3_simplified/B002: framework stub: stats_begin_budget; advance_xp3_si
+  fortran:advance_xp3_module               differential.bitexact    bit_exact    points=24000 bit_exact=24000 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             24000 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by gabls2; recorded on a case that takes it), advance_xp3_flat (not reached by gabls
+  fortran:advance_xp3_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:clip_explicit                    static.rwset             sampled      
+                                             32 blocks match; waived clip_covars_denom/B001: framework stub: stats_begin_budget, stats_update_budget; clip_covars_denom/B013: framework stub: stats_finalize_budget, stats_update_budget; clip_varian
+  fortran:clip_explicit                    differential.bitexact    bit_exact    points=44130 bit_exact=44130 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             44130 points across 4 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled inputs by fortran_clip_explicit.sampled.j
+  fortran:clip_explicit                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mixing_length                    static.rwset             sampled      
+                                             67 blocks match; waived calc_lscale/B003: framework stub: stats_update; calc_lscale/B005: framework stub: stats_update; calc_lscale/B012: framework stub: stats_update; calc_lscale_directly/B003: frame
+  fortran:mixing_length                    differential.bitexact    bit_exact    points=72110 bit_exact=72110 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             72110 points across 2 subprogram(s), all bit-exact; 3 subprogram(s) ungated, no reference: diagnose_lscale_from_tau (not reached by gabls2; recorded on a case that takes it), diagnose_lscale_from_tau_
+  fortran:mixing_length                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mono_flux_limiter                static.rwset             sampled      
+                                             49 blocks match; waived monotonic_turbulent_flux_limit/B014: framework stub: stats_begin_budget, stats_update; mean_vert_vel_up_down/B005: framework stub: stats_update
+  fortran:mono_flux_limiter                differential.bitexact    bit_exact    points=16020 bit_exact=16020 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             16020 points across 2 subprogram(s), all bit-exact
+  fortran:mono_flux_limiter                symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_hybrid_pdf_main              static.rwset             sampled      
+                                             21 blocks match
+  fortran:new_pdf_main                     static.rwset             sampled      
+                                             15 blocks match
+  fortran:pdf_closure_module               static.rwset             sampled      
+                                             156 blocks match
+  fortran:pdf_closure_module               differential.bitexact    bit_exact    points=1044630 bit_exact=1044630 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1044630 points across 2 subprogram(s), all bit-exact; 5 subprogram(s) ungated, no reference: calc_w_up_in_cloud (no derived-type dummy, so no probe: compared on sampled inputs by fortran_pdf_closure_m
+  fortran:pdf_closure_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:sponge_layer_damping             static.rwset             sampled      
+                                             14 blocks match
+
+== port  (recipe port-clubb, 11 units)
+  fortran:advance_clubb_core_module        differential.tolerance   toleranced   points=453700 bit_exact=453524 max_ulp=53 max_ulp_dominant=32 max_rel=3.187366483752866e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             363017 dominant point(s) within 32 ULP (gate 32); the tail reaches 53 ULP but max_rel=3.187e-15 is inside rel_gate=1e-12
+  fortran:advance_windm_edsclrm_module     differential.tolerance   bit_exact    points=29080 bit_exact=29080 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             29080 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_wp2_wp3_module           differential.tolerance   bit_exact    points=11680 bit_exact=11680 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             11680 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xm_wpxp_module           differential.tolerance   bit_exact    points=35000 bit_exact=35000 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             35000 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:advance_xp2_xpyp_module          differential.tolerance   bit_exact    points=14640 bit_exact=14640 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             14640 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by bomex, cgils_s6-hybridpdf; recorded on a
+  fortran:advance_xp3_module               differential.tolerance   ulp_bounded  points=11520 bit_exact=11500 max_ulp=8 max_ulp_dominant=0 max_rel=5.377844465832184e-22 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             every one of 11520 points within 8 ULP (gate 32); 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by bomex, cgils_s6-hybridpdf; recorded on a case that takes it), advance_xp3_flat (not
+  fortran:clip_explicit                    differential.tolerance   bit_exact    points=26360 bit_exact=26360 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             26360 points across 4 subprogram(s), all bit-exact -- this backend did not need the tiers; 2 subprogram(s) ungated, no reference: clip_covar (no derived-type dummy, so no probe: compared on sampled in
+  fortran:mixing_length                    differential.tolerance   bit_exact    points=70760 bit_exact=70760 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             70760 points across 3 subprogram(s), all bit-exact -- this backend did not need the tiers; 1 subprogram(s) ungated, no reference: set_lscale_max (no derived-type dummy, so no probe: compared on sample
+  fortran:mono_flux_limiter                differential.tolerance   bit_exact    points=11600 bit_exact=11600 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             11600 points across 2 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:new_hybrid_pdf_main              differential.tolerance   bit_exact    points=51300 bit_exact=51300 max_ulp=0 max_ulp_dominant=0 max_rel=0.0 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             51300 points across 1 subprogram(s), all bit-exact -- this backend did not need the tiers
+  fortran:pdf_closure_module               differential.tolerance   toleranced   points=633280 bit_exact=632988 max_ulp=53 max_ulp_dominant=32 max_rel=3.187366483752866e-15 nan_mismatch=0 ulp_gate=32 rel_gate=1e-12
+                                             508699 dominant point(s) within 32 ULP (gate 32); the tail reaches 53 ULP but max_rel=3.187e-15 is inside rel_gate=1e-12; 5 subprogram(s) ungated, no reference: calc_w_up_in_cloud (no derived-type dum
+
+== tier0  (recipe translate-clubb, 14 units)
+  fortran:bicgstab_solvers                 static.rwset             sampled      
+                                             22 blocks match
+  fortran:bicgstab_solvers                 differential.bitexact    bit_exact    points=1920 bit_exact=1920 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1920 points across 1 subprogram(s), all bit-exact
+  fortran:bicgstab_solvers                 symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:calc_roots                       static.rwset             sampled      
+                                             20 blocks match
+  fortran:calc_roots                       differential.bitexact    failed       points=810 bit_exact=738 max_ulp=1 max_rel=2.1915519977597393e-16 nan_mismatch=0
+                                             72/810 points differ (max 1 ULP, max_rel=2.192e-16) and no rtol excuses them
+  fortran:calendar                         static.rwset             sampled      
+                                             31 blocks match
+  fortran:calendar                         differential.bitexact    bit_exact    points=100 bit_exact=100 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             100 points across 5 subprogram(s), all bit-exact
+  fortran:calendar                         symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:interpolation                    static.rwset             sampled      
+                                             34 blocks match
+  fortran:interpolation                    differential.bitexact    bit_exact    points=430 bit_exact=430 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             430 points across 8 subprogram(s), all bit-exact
+  fortran:interpolation                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:ly93_pdf                         static.rwset             sampled      
+                                             15 blocks match
+  fortran:ly93_pdf                         differential.bitexact    bit_exact    points=1440 bit_exact=1440 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1440 points across 3 subprogram(s), all bit-exact
+  fortran:ly93_pdf                         symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mean_adv                         static.rwset             sampled      
+                                             6 blocks match
+  fortran:mean_adv                         differential.bitexact    bit_exact    points=2040 bit_exact=2040 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             2040 points across 2 subprogram(s), all bit-exact
+  fortran:mean_adv                         symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:nc_ncn_eqns                      static.rwset             sampled      
+                                             15 blocks match
+  fortran:nc_ncn_eqns                      differential.bitexact    bit_exact    points=40 bit_exact=40 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             40 points across 4 subprogram(s), all bit-exact
+  fortran:nc_ncn_eqns                      symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_hybrid_pdf                   static.rwset             sampled      
+                                             15 blocks match
+  fortran:new_hybrid_pdf                   differential.bitexact    bit_exact    points=200 bit_exact=200 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             200 points across 7 subprogram(s), all bit-exact
+  fortran:new_hybrid_pdf                   symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_pdf                          static.rwset             sampled      
+                                             45 blocks match
+  fortran:new_pdf                          differential.bitexact    failed       points=1040 bit_exact=1040 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             2 subprogram(s) could not be compared: calc_setter_var_params: no draw this harness could compare in 24 attempt(s) (24 NaN on both sides): sigma_x_2: a NaN in the compared values on both sides; calc_c
+  fortran:new_tsdadg_pdf                   static.rwset             sampled      
+                                             42 blocks match
+  fortran:new_tsdadg_pdf                   differential.bitexact    bit_exact    points=1130 bit_exact=1130 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1130 points across 3 subprogram(s), all bit-exact
+  fortran:new_tsdadg_pdf                   symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:penta_lu_solvers                 static.rwset             sampled      
+                                             10 blocks match
+  fortran:penta_lu_solvers                 differential.bitexact    bit_exact    points=4160 bit_exact=4160 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             4160 points across 2 subprogram(s), all bit-exact
+  fortran:penta_lu_solvers                 symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:skx_module                       static.rwset             sampled      
+                                             12 blocks match
+  fortran:skx_module                       differential.bitexact    bit_exact    points=1280 bit_exact=1280 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1280 points across 4 subprogram(s), all bit-exact
+  fortran:skx_module                       symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:t_in_k_module                    static.rwset             sampled      
+                                             8 blocks match
+  fortran:t_in_k_module                    differential.bitexact    bit_exact    points=420 bit_exact=420 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             420 points across 4 subprogram(s), all bit-exact
+  fortran:t_in_k_module                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:tridiag_lu_solvers               static.rwset             sampled      
+                                             17 blocks match
+  fortran:tridiag_lu_solvers               differential.bitexact    bit_exact    points=3200 bit_exact=3200 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             3200 points across 3 subprogram(s), all bit-exact
+  fortran:tridiag_lu_solvers               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+
+== tier1  (recipe translate-clubb, 11 units)
+  fortran:advance_helper_module            static.rwset             sampled      
+                                             102 blocks match; waived calc_brunt_vaisala_freq_sqd/B020: framework stub: stats_update; wp23_term_splat_lhs/B007: framework stub: stats_update
+  fortran:advance_helper_module            differential.bitexact    bit_exact    points=7770 bit_exact=7770 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             7770 points across 25 subprogram(s), all bit-exact; 1 subprogram(s) ungated, no reference: lscale_width_vert_avg (gr: UNKNOWN(TYPE(GRID)))
+  fortran:advance_helper_module            symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:calc_pressure                    static.rwset             sampled      
+                                             9 blocks match
+  fortran:calc_pressure                    differential.bitexact    bit_exact    points=1680 bit_exact=1680 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1680 points across 2 subprogram(s), all bit-exact
+  fortran:calc_pressure                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:diffusion                        static.rwset             sampled      
+                                             16 blocks match
+  fortran:diffusion                        differential.bitexact    bit_exact    points=2040 bit_exact=2040 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             2040 points across 2 subprogram(s), all bit-exact
+  fortran:diffusion                        symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_hybrid_pdf_main              static.rwset             sampled      
+                                             21 blocks match
+  fortran:new_hybrid_pdf_main              differential.bitexact    failed       points=0 bit_exact=0 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             nothing was compared; that is not a pass; 2 subprogram(s) ungated, no reference: new_hybrid_pdf_driver (derives the PDF shape parameters from the tunables and reaches their error stop or domain on gen
+  fortran:new_pdf_main                     static.rwset             sampled      
+                                             15 blocks match
+  fortran:new_pdf_main                     differential.bitexact    failed       points=0 bit_exact=0 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             nothing was compared; that is not a pass; 2 subprogram(s) ungated, no reference: new_pdf_driver (derives the PDF shape parameters from the tunables and reaches their error stop or domain on generated 
+  fortran:pdf_utilities                    static.rwset             sampled      
+                                             49 blocks match
+  fortran:pdf_utilities                    differential.bitexact    bit_exact    points=1750 bit_exact=1750 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1750 points across 19 subprogram(s), all bit-exact
+  fortran:pdf_utilities                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:pos_definite_module              static.rwset             sampled      
+                                             13 blocks match
+  fortran:pos_definite_module              differential.bitexact    bit_exact    points=1360 bit_exact=1360 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             1360 points across 1 subprogram(s), all bit-exact
+  fortran:pos_definite_module              symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:saturation                       static.rwset             sampled      
+                                             35 blocks match
+  fortran:saturation                       differential.bitexact    bit_exact    points=350 bit_exact=350 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             350 points across 4 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: rcm_sat_adj (iterative saturation adjustment: generated inputs never converge and the Fortran error-stops (engi
+  fortran:saturation                       symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:sigma_sqd_w_module               static.rwset             sampled      
+                                             6 blocks match
+  fortran:sigma_sqd_w_module               differential.bitexact    bit_exact    points=360 bit_exact=360 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             360 points across 1 subprogram(s), all bit-exact
+  fortran:sigma_sqd_w_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:sponge_layer_damping             static.rwset             sampled      
+                                             14 blocks match
+  fortran:sponge_layer_damping             differential.bitexact    failed       points=0 bit_exact=0 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             zero numerical points were compared; that is not a pass; 5 subprogram(s) ungated, no reference: initialize_tau_sponge_damp_api (creates its intent(out) object and writes only the levels inside the spo
+  fortran:turbulent_adv_pdf                static.rwset             sampled      
+                                             16 blocks match
+  fortran:turbulent_adv_pdf                differential.bitexact    bit_exact    points=2880 bit_exact=2880 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             2880 points across 4 subprogram(s), all bit-exact
+  fortran:turbulent_adv_pdf                symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+
+== tier2  (recipe translate-clubb, 11 units)
+  fortran:advance_windm_edsclrm_module     static.rwset             sampled      
+                                             40 blocks match
+  fortran:advance_windm_edsclrm_module     differential.bitexact    bit_exact    points=29080 bit_exact=29080 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             29080 points across 1 subprogram(s), all bit-exact
+  fortran:advance_windm_edsclrm_module     symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_wp2_wp3_module           static.rwset             sampled      
+                                             165 blocks match; waived advance_wp2_wp3/B008: framework stub: stats_update; advance_wp2_wp3/B015: framework stub: stats_update; advance_wp2_wp3/B062: framework stub: stats_update; wp23_solve/B011: fr
+  fortran:advance_wp2_wp3_module           differential.bitexact    bit_exact    points=11680 bit_exact=11680 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             11680 points across 1 subprogram(s), all bit-exact
+  fortran:advance_wp2_wp3_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xm_wpxp_module           static.rwset             sampled      
+                                             195 blocks match; waived advance_xm_wpxp/B011: framework stub: stats_update; advance_xm_wpxp/B017: framework stub: stats_update; calc_xm_wpxp_ta_terms/B002: framework stub: stats_update; xm_wpxp_clipp
+  fortran:advance_xm_wpxp_module           differential.bitexact    bit_exact    points=35000 bit_exact=35000 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             35000 points across 1 subprogram(s), all bit-exact
+  fortran:advance_xm_wpxp_module           symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp2_xpyp_module          static.rwset             sampled      
+                                             150 blocks match; waived advance_xp2_xpyp/B028: framework stub: stats_begin_budget; advance_xp2_xpyp/B030: framework stub: stats_finalize_budget; advance_xp2_xpyp/B033: framework stub: stats_begin_bud
+  fortran:advance_xp2_xpyp_module          differential.bitexact    bit_exact    points=14640 bit_exact=14640 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             14640 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: update_xp2_mc (not reached by bomex, cgils_s6-hybridpdf; recorded on a case that takes it), update_xp2_mc_fla
+  fortran:advance_xp2_xpyp_module          symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:advance_xp3_module               static.rwset             sampled      
+                                             43 blocks match; waived advance_xp3/B020: framework stub: stats_update; diagnose_xp3/B012: framework stub: stats_update; advance_xp3_simplified/B002: framework stub: stats_begin_budget; advance_xp3_si
+  fortran:advance_xp3_module               differential.bitexact    bit_exact    points=11520 bit_exact=11520 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             11520 points across 1 subprogram(s), all bit-exact; 2 subprogram(s) ungated, no reference: advance_xp3 (not reached by bomex, cgils_s6-hybridpdf; recorded on a case that takes it), advance_xp3_flat (n
+  fortran:advance_xp3_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:clip_explicit                    static.rwset             sampled      
+                                             32 blocks match; waived clip_covars_denom/B001: framework stub: stats_begin_budget, stats_update_budget; clip_covars_denom/B013: framework stub: stats_finalize_budget, stats_update_budget; clip_varian
+  fortran:clip_explicit                    differential.bitexact    bit_exact    points=720 bit_exact=720 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             720 points across 1 subprogram(s), all bit-exact; 9 subprogram(s) ungated, no reference: clip_covars_denom (compared on recordings by fortran_clip_explicit.json), clip_covars_denom_flat (compared on r
+  fortran:clip_explicit                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mixing_length                    static.rwset             sampled      
+                                             67 blocks match; waived calc_lscale/B003: framework stub: stats_update; calc_lscale/B005: framework stub: stats_update; calc_lscale/B012: framework stub: stats_update; calc_lscale_directly/B003: frame
+  fortran:mixing_length                    differential.bitexact    bit_exact    points=40 bit_exact=40 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             40 points across 1 subprogram(s), all bit-exact; 7 subprogram(s) ungated, no reference: calc_lscale (compared on recordings by fortran_mixing_length.json), calc_lscale_directly (compared on recordings
+  fortran:mixing_length                    symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:mono_flux_limiter                static.rwset             sampled      
+                                             49 blocks match; waived monotonic_turbulent_flux_limit/B014: framework stub: stats_begin_budget, stats_update; mean_vert_vel_up_down/B005: framework stub: stats_update
+  fortran:mono_flux_limiter                differential.bitexact    bit_exact    points=11600 bit_exact=11600 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             11600 points across 2 subprogram(s), all bit-exact
+  fortran:mono_flux_limiter                symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:new_hybrid_pdf_main              static.rwset             sampled      
+                                             21 blocks match
+  fortran:new_hybrid_pdf_main              differential.bitexact    bit_exact    points=51300 bit_exact=51300 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             51300 points across 1 subprogram(s), all bit-exact
+  fortran:new_hybrid_pdf_main              symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:pdf_closure_module               static.rwset             sampled      
+                                             156 blocks match
+  fortran:pdf_closure_module               differential.bitexact    bit_exact    points=2560 bit_exact=2560 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             2560 points across 5 subprogram(s), all bit-exact; 18 subprogram(s) ungated, no reference: calc_ice_cloud_frac_component (compared on recordings by fortran_pdf_closure_module.json), calc_liquid_cloud_
+  fortran:pdf_closure_module               symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful
+  fortran:sponge_layer_damping             static.rwset             sampled      
+                                             14 blocks match
+  fortran:sponge_layer_damping             differential.bitexact    failed       points=0 bit_exact=0 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             zero numerical points were compared; that is not a pass; 5 subprogram(s) ungated, no reference: initialize_tau_sponge_damp_api (creates its intent(out) object and writes only the levels inside the spo
+
+== tier3  (recipe translate-clubb, 1 units)
+  fortran:advance_clubb_core_module        static.rwset             sampled      
+                                             29 blocks match; waived advance_clubb_core/B027: framework stub: stats_accumulate, stats_finalize_budget
+  fortran:advance_clubb_core_module        differential.bitexact    bit_exact    points=453700 bit_exact=453700 max_ulp=0 max_rel=0.0 nan_mismatch=0
+                                             453700 points across 1 subprogram(s), all bit-exact
+  fortran:advance_clubb_core_module        symbolic.notary          symbolic     
+                                             no rewrites to notarize; the translation is print-order faithful

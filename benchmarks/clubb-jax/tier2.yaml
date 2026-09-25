@@ -1,0 +1,62 @@
+# tier2: the 11 modules the step calls, NumPy gated bit-exact: eight on the recording of bomex and cgils_s6, three (clip_explicit, mixing_length, pdf_closure_module) on sampled inputs.
+# Criterion for clubb-jax summaries/tier2.json. Units are listed as the summary
+# spells them; the ungated entries and waivers are the case README's own
+# account (section 1), written here so the criterion is explicit rather than
+# inferred from the last run. Every waiver names its bound and its reason.
+
+id: "tier2"
+product: "clubb-jax"
+description: "the 11 modules the step calls, NumPy gated bit-exact: eight on the recording of bomex and cgils_s6, three (clip_explicit, mixing_length, pdf_closure_module) on sampled inputs"
+case:
+  recipe: "translate-clubb"
+  summary: "summaries/tier2.json"
+  engine: "e3c6717"
+  extension: "recast-clubb"
+  precision: "double (CLUBB_REAL_TYPE=8)"
+  recording: "output/recorded (bomex, cgils_s6-hybridpdf; 20 calls); local data under clubb-jax output/, not in the repository"
+  notes: "python tools/regate.py run  (tools/regate/jobs.json lists the jobs; tools/regate/configs/ holds each job's config)"
+reference:
+  model: "CLUBB_core, larson-group/clubb_release"
+  commit_or_tag: "8ab3902"
+  provenance: "dump-replay: clubb_standalone instrumented so every call of the routine writes its inputs and outputs; run_scm.py on bomex and cgils_s6-hybridpdf, the first 20 calls of each probe per case; gfortran (Homebrew GCC 16.1.0) -O1 -fno-fast-math -ffp-contract=off, statistics off (l_stats = .false.), CLUBB_REAL_TYPE=8; clip_explicit, mixing_length and pdf_closure_module against f2py-golden-clubb: the same Fortran compiled through f2py and called on generated inputs inside physical ranges (recast_inputs.py at the staged root); derived-type arguments flattened on both sides"
+acceptance:
+  kind: "unit-differential"
+  summary_schema: 1
+  rules:
+    - check: "unit_set_equal"
+      units:
+        - "fortran:advance_windm_edsclrm_module"
+        - "fortran:advance_wp2_wp3_module"
+        - "fortran:advance_xm_wpxp_module"
+        - "fortran:advance_xp2_xpyp_module"
+        - "fortran:advance_xp3_module"
+        - "fortran:clip_explicit"
+        - "fortran:mixing_length"
+        - "fortran:mono_flux_limiter"
+        - "fortran:new_hybrid_pdf_main"
+        - "fortran:pdf_closure_module"
+        - "fortran:sponge_layer_damping"
+      gating: true
+    - check: "confidence_at_least"
+      verifier: "static.rwset"
+      level: "sampled"
+      gating: true
+      note: "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+    - check: "confidence_at_least"
+      verifier: "differential.bitexact"
+      level: "bit_exact"
+      gating: true
+      note: "every floating-point value of every output identical to the Fortran's"
+      ungated: &ungated
+        "fortran:sponge_layer_damping":
+          reason: "initialize_tau_sponge_damp_api creates its intent(out) object and writes only the levels inside the sponge layer; the rest is undefined on both sides. Called from clubb_driver, outside CLUBB_core; not verified"
+    - check: "nan_mask_equal"
+      verifier: "differential.bitexact"
+      gating: true
+      ungated: *ungated
+    - check: "confidence_at_least"
+      verifier: "symbolic.notary"
+      level: "symbolic"
+      gating: false
+      note: "optional stage: no arithmetic reordered in translation; reported, not gated"
+      ungated: *ungated

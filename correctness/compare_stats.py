@@ -17,7 +17,7 @@ whole field or a region or a time mean.
 `../schemas/acceptance.v1.json` therefore still marks statistical acceptance
 `"status": "provisional"`, and `verify_evidence.py` still rejects any manifest
 that uses it. That has NOT changed: this tool computes and reports, but no
-evidence package built on it is accepted while the marker stands. Removing the
+acceptance record built on it is accepted while the marker stands. Removing the
 marker from the schema is D4's to do, not this module's.
 
 What this module does instead is refuse to leave the semantics unstated. Each

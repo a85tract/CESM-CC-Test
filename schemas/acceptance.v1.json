@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/a85tract/CESM-CC-Test/main/schemas/acceptance.v1.json",
   "title": "CC-Test acceptance criteria, version 1",
-  "description": "Vocabulary for declaring what a validation case must satisfy to be called PASS. Two families: 'bitwise' (Pipeline 1 - PyCAM5, freeCAM) is complete; 'statistical' (Pipeline 2 - jax-kernels, numba-kernels, pyphys-bridge) is provisional and must be finalised before any Pipeline 2 evidence is accepted. Every rule carries an explicit 'gating' flag: a check that is computed but does not gate must say so, so that the meaning of PASS is never implicit.",
+  "description": "Vocabulary for declaring what a validation case must satisfy to be called PASS. Three families: 'bitwise' (whole-model run pairs - PyCAM5, freeCAM) is complete; 'unit-differential' (per-unit gates run by RecastEngine and summarised in a verification.json - clubb-jax, clm-ml-jax, elm-jax) is complete; 'statistical' (whole-model ensemble criteria) is provisional and must be finalised before any evidence is accepted against it. Every rule carries an explicit 'gating' flag: a check that is computed but does not gate must say so, so that the meaning of PASS is never implicit.",
 
   "$defs": {
 
@@ -10,6 +10,7 @@
       "description": "The acceptance block of one validation case.",
       "oneOf": [
         { "$ref": "#/$defs/bitwiseAcceptance" },
+        { "$ref": "#/$defs/unitDifferentialAcceptance" },
         { "$ref": "#/$defs/statisticalAcceptance" }
       ]
     },
@@ -129,6 +130,141 @@
       "additionalProperties": false,
       "if": { "properties": { "gating": { "const": true } }, "required": ["gating"] },
       "then": { "required": ["max_abs_pct"] }
+    },
+
+    "unitDifferentialAcceptance": {
+      "type": "object",
+      "description": "Per-unit differential gates, as RecastEngine runs them: every translated unit is compared against the compiled or recorded original and receives a verdict per verifier. The measurements this block reads come from the engine's run summary (`recast run ... --summary verification.json`, `schema: 1`): one entry per unit, one verdict per verifier, each verdict carrying a confidence and its metrics. The rules decide which of those recorded measurements gate; they never recompute anything. A unit that has no verdict from the named verifier is unevaluable, not passing.",
+      "properties": {
+        "kind": { "const": "unit-differential" },
+        "summary_schema": {
+          "const": 1,
+          "description": "The `schema` value of the RecastEngine summary these rules are written against. A summary with any other value is not read."
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/unitDifferentialRule" },
+          "contains": {
+            "type": "object",
+            "properties": { "gating": { "const": true } },
+            "required": ["gating"]
+          },
+          "description": "At least one rule must be gating."
+        }
+      },
+      "required": ["kind", "summary_schema", "rules"],
+      "additionalProperties": false
+    },
+
+    "unitDifferentialRule": {
+      "description": "One per-unit check. The 'check' value selects the rule shape.",
+      "oneOf": [
+        { "$ref": "#/$defs/ruleUnitSetEqual" },
+        { "$ref": "#/$defs/ruleConfidenceAtLeast" },
+        { "$ref": "#/$defs/ruleUlpTiered" },
+        { "$ref": "#/$defs/ruleNanMaskEqual" }
+      ]
+    },
+
+    "ruleUnitSetEqual": {
+      "type": "object",
+      "description": "The summary must cover exactly these units - no fewer, no more. Always gating, for the same reason file_set_equal is: a PASS over a narrower unit set than the benchmark names is the cheapest path to green, and the one this rule closes. Units are named as the summary names them, e.g. 'fortran:advance_clubb_core_module'.",
+      "properties": {
+        "check": { "const": "unit_set_equal" },
+        "units": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "gating": { "const": true },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "units", "gating"],
+      "additionalProperties": false
+    },
+
+    "ungatedUnits": {
+      "type": "object",
+      "description": "Units this rule does not judge, keyed by unit name as the summary spells it, each with the reason. They must still appear in the summary (unit_set_equal names them), so a reader sees that they exist and were not gated; the rule skips them and lists them in its detail. This is how a benchmark states a known coverage gap - a routine no recording reaches, an oracle that cannot be built - instead of leaving the unit out of the unit set, which would hide the gap.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": { "reason": { "type": "string", "minLength": 1 } },
+        "required": ["reason"],
+        "additionalProperties": false
+      }
+    },
+
+    "ruleConfidenceAtLeast": {
+      "type": "object",
+      "description": "Every unit's verdict from the named verifier must reach at least this rung of the engine's confidence ladder (weakest to strongest: sampled, toleranced, ulp_bounded, bit_exact, symbolic; 'failed' is below all of them). 'bit_exact' on 'differential.bitexact' is the NumPy translation gate; 'sampled' on 'static.rwset' is the dataflow gate.",
+      "properties": {
+        "check": { "const": "confidence_at_least" },
+        "verifier": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Verifier name as the summary records it, e.g. 'differential.bitexact'."
+        },
+        "level": { "enum": ["sampled", "toleranced", "ulp_bounded", "bit_exact", "symbolic"] },
+        "ungated": { "$ref": "#/$defs/ungatedUnits" },
+        "gating": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "verifier", "level", "gating"],
+      "additionalProperties": false
+    },
+
+    "ruleUlpTiered": {
+      "type": "object",
+      "description": "The tiered ULP criterion for a target that cannot be bit-exact by construction (a JAX port under XLA): every dominant element - within dominant_at of its row's maximum - must be within ulp_gate ULP of the reference, and every element within rel_gate relative. Decision D4 as settled 2026-09-24 from what recast.verify.tolerance already enforces. The verifier records the gate it ran with (metrics ulp_gate, rel_gate); make_manifest.py requires those to equal the values here, so a benchmark and a run that describe different criteria cannot produce a PASS. A unit that is accepted beyond ulp_gate because of measured conditioning must be listed in waivers with its own bound and the reason - the waiver is written here, in the benchmark, never inferred from the verdict.",
+      "properties": {
+        "check": { "const": "ulp_tiered" },
+        "verifier": {
+          "type": "string",
+          "minLength": 1,
+          "default": "differential.tolerance"
+        },
+        "dominant_at": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "An element is dominant when it is within this fraction of its row's maximum magnitude, e.g. 1.0e-3. Declared here; checked against the verdict when the verifier records it."
+        },
+        "ulp_gate": { "type": "integer", "minimum": 0 },
+        "rel_gate": { "type": "number", "exclusiveMinimum": 0 },
+        "waivers": {
+          "type": "object",
+          "description": "Per-unit relaxation of ulp_gate, keyed by unit name as the summary spells it.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "ulp_gate": { "type": "integer", "minimum": 0 },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "required": ["ulp_gate", "reason"],
+            "additionalProperties": false
+          }
+        },
+        "ungated": { "$ref": "#/$defs/ungatedUnits" },
+        "gating": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "verifier", "dominant_at", "ulp_gate", "rel_gate", "gating"],
+      "additionalProperties": false
+    },
+
+    "ruleNanMaskEqual": {
+      "type": "object",
+      "description": "The candidate and the reference must be non-finite at exactly the same elements (metrics nan_mismatch == 0 for every unit). A fill value that moved is a real difference between the runs.",
+      "properties": {
+        "check": { "const": "nan_mask_equal" },
+        "verifier": { "type": "string", "minLength": 1 },
+        "ungated": { "$ref": "#/$defs/ungatedUnits" },
+        "gating": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "required": ["check", "verifier", "gating"],
+      "additionalProperties": false
     },
 
     "statisticalAcceptance": {

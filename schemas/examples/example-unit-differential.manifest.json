@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "evidence_class": "reconstructed",
+  "artifact": {
+    "name": "RecastEngine-Pro",
+    "repo": "https://github.com/a85tract/RecastEngine-Pro",
+    "commit": "430d90388f659ca750df2e9824faca22555f28e2",
+    "version": "unreleased-430d9038"
+  },
+  "reference": {
+    "model": "toy_physics.f90, compiled by the f2py-golden oracle",
+    "commit_or_tag": "430d90388f659ca750df2e9824faca22555f28e2",
+    "provenance": "generated in-domain draws from recast_inputs.py; the reference is the untouched Fortran built by f2py"
+  },
+  "cc_test": {
+    "version": "unreleased-a924e8ba",
+    "commit": "a924e8ba43a3f2b20feb470740b1884f65c39318"
+  },
+  "environment": {
+    "machine": "developer laptop",
+    "python": "CPython 3.11"
+  },
+  "cases": [
+    {
+      "id": "toy-physics-translate",
+      "benchmark": "benchmarks/recastengine-pro/toy-physics-translate.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:toy_physics"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "the notary is an optional stage; reported, not gated"
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "1 units, as the benchmark names them"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:toy_physics); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:toy_physics); required at least bit_exact"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every unit"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:toy_physics); required at least symbolic"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "RecastEngine-Pro/corpus/toy_physics/verification.json",
+        "retention": "committed to the engine repository; kept",
+        "files": [
+          {
+            "name": "recast-summary.toy_physics.json",
+            "md5": "f6fa47e978a2e3229a7abe922825b6aa",
+            "bytes": 1537
+          }
+        ]
+      }
+    }
+  ],
+  "security": {
+    "gate": "hpc-devsecops",
+    "status": "NOT_RUN"
+  },
+  "result": "PASS",
+  "timestamp": "2026-09-24T00:00:00Z",
+  "notes": "ILLUSTRATIVE FORMAT EXAMPLE - NOT EVIDENCE. Assembled by make_manifest.py from tests/fixtures/recast-summary.toy_physics.json (a real RecastEngine summary of the engine's own corpus module, engine commit 430d9038) against schemas/examples/example-unit-differential.benchmark.yaml. The engine's summary deliberately omits the compiler, so it is not captured here and evidence_class is 'reconstructed'. The benchmark path names a file that does not exist under benchmarks/, which is why verify_evidence.py refuses it. The Cyber gate was not run. Do not copy this file into evidence/."
+}

@@ -1,0 +1,50 @@
+# The benchmark that example-unit-differential.manifest.json was assembled from.
+# A format example, not a product benchmark: it lives here beside the manifest
+# rather than under benchmarks/, which is why verify_evidence.py reports the
+# manifest as naming a benchmark that does not exist.
+#
+# A real unit-differential benchmark goes to benchmarks/<product>/<case-id>.yaml
+# and names the units a case repository's verification.json must cover.
+
+id: toy-physics-translate
+product: recastengine-pro
+description: the engine's own corpus module, NumPy translation gated bit-exact against f2py-compiled Fortran
+
+case:
+  recipe: translate
+  summary: corpus/toy_physics/verification.json
+  notes: "recast run translate corpus/toy_physics --config corpus/toy_physics/recast.json --summary corpus/toy_physics/verification.json"
+
+reference:
+  model: "toy_physics.f90, compiled by the f2py-golden oracle"
+  commit_or_tag: 430d90388f659ca750df2e9824faca22555f28e2
+  provenance: "generated in-domain draws from recast_inputs.py; the reference is the untouched Fortran built by f2py"
+
+acceptance:
+  kind: unit-differential
+  summary_schema: 1
+  rules:
+    - check: unit_set_equal
+      units: ["fortran:toy_physics"]
+      gating: true
+
+    - check: confidence_at_least
+      verifier: static.rwset
+      level: sampled
+      gating: true
+      note: "every translated block reads and writes what its Fortran block does"
+
+    - check: confidence_at_least
+      verifier: differential.bitexact
+      level: bit_exact
+      gating: true
+
+    - check: nan_mask_equal
+      verifier: differential.bitexact
+      gating: true
+
+    - check: confidence_at_least
+      verifier: symbolic.notary
+      level: symbolic
+      gating: false
+      note: "the notary is an optional stage; reported, not gated"

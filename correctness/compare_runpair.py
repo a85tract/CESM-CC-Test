@@ -56,7 +56,7 @@ and the benchmark to fill it in.
 
 JSON contract
 -------------
-`files[]` and `timing` drop into `cases[].result` of an evidence manifest with
+`files[]` and `timing` drop into `cases[].result` of an acceptance record's manifest with
 no reshaping; their field names and types are fixed by
 `../schemas/evidence-manifest.v1.json` ($defs.fileComparison,
 $defs.timerComparison). The remaining top-level keys are what `make_manifest.py`

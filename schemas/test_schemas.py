@@ -79,8 +79,44 @@ def _with_gate(status: str = "PASS"):
     return apply
 
 
+UNIT_EXAMPLE = json.loads(
+    (HERE / "examples" / "example-unit-differential.manifest.json").read_text()
+)
+
+UNIT_ACCEPTANCE = {
+    "kind": "unit-differential",
+    "summary_schema": 1,
+    "rules": [
+        {"check": "unit_set_equal", "units": ["fortran:a", "fortran:b"], "gating": True},
+        {"check": "confidence_at_least", "verifier": "differential.bitexact",
+         "level": "bit_exact", "gating": True},
+        {"check": "ulp_tiered", "verifier": "differential.tolerance", "dominant_at": 1e-3,
+         "ulp_gate": 32, "rel_gate": 1e-12,
+         "waivers": {"fortran:b": {"ulp_gate": 128, "reason": "measured conditioning"}},
+         "gating": True},
+        {"check": "nan_mask_equal", "verifier": "differential.tolerance",
+         "ungated": {"fortran:c": {"reason": "no recording reaches it"}}, "gating": True},
+    ],
+}
+
+
+def _unit_acceptance(edit):
+    def apply(doc: dict) -> None:
+        acceptance = copy.deepcopy(UNIT_ACCEPTANCE)
+        edit(acceptance)
+        doc["cases"][0]["acceptance"] = acceptance
+        doc["cases"][0]["result"]["checks"] = [
+            {"check": r["check"], "gating": r["gating"], "passed": True}
+            for r in acceptance["rules"]
+        ]
+
+    return apply
+
+
 POSITIVE = [
     ("format example validates", EXAMPLE),
+    ("unit-differential format example validates", UNIT_EXAMPLE),
+    ("unit-differential acceptance with every rule shape", mutate(_unit_acceptance(lambda a: None))),
     ("complete evidence_class with full provenance", mutate(_complete_provenance)),
     (
         "statistical acceptance is schema-legal while marked provisional",
@@ -112,6 +148,43 @@ POSITIVE = [
 
 NEGATIVE = [
     ("security block omitted entirely", mutate(lambda d: d.pop("security"))),
+    (
+        "unit-differential without the summary schema it reads",
+        mutate(_unit_acceptance(lambda a: a.pop("summary_schema"))),
+    ),
+    (
+        "confidence_at_least asking for a level that is not on the ladder",
+        mutate(_unit_acceptance(lambda a: a["rules"][1].__setitem__("level", "exact"))),
+    ),
+    (
+        "confidence_at_least asking for 'failed'",
+        mutate(_unit_acceptance(lambda a: a["rules"][1].__setitem__("level", "failed"))),
+    ),
+    (
+        "ulp_tiered waiver without a reason",
+        mutate(_unit_acceptance(lambda a: a["rules"][2]["waivers"]["fortran:b"].pop("reason"))),
+    ),
+    (
+        "ungated unit without a reason",
+        mutate(_unit_acceptance(lambda a: a["rules"][3].__setitem__("ungated", {"fortran:c": {}}))),
+    ),
+    (
+        "ulp_tiered without rel_gate",
+        mutate(_unit_acceptance(lambda a: a["rules"][2].pop("rel_gate"))),
+    ),
+    (
+        "unit_set_equal marked non-gating",
+        mutate(_unit_acceptance(lambda a: a["rules"][0].__setitem__("gating", False))),
+    ),
+    (
+        "unit_set_equal naming the same unit twice",
+        mutate(_unit_acceptance(lambda a: a["rules"][0].__setitem__("units", ["fortran:a", "fortran:a"]))),
+    ),
+    (
+        "unit-differential acceptance in which nothing gates",
+        mutate(_unit_acceptance(lambda a: a.__setitem__("rules", [
+            {"check": "nan_mask_equal", "verifier": "differential.tolerance", "gating": False}]))),
+    ),
     (
         "gate claims PASS without any scan detail",
         mutate(lambda d: d.__setitem__("security", {"gate": "hpc-devsecops", "status": "PASS"})),

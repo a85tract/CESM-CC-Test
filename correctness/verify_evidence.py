@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate evidence manifests — schema plus the invariants JSON Schema can't express.
+"""Validate acceptance records' manifests — schema plus the invariants JSON Schema can't express.
 
 This is the CI entry point. It runs on committed manifests in seconds and needs
 no HPC access, no model output, and no network beyond the repository itself.
@@ -390,7 +390,7 @@ def verify(path: Path, validator, findings: Findings, checkouts: Dict[str, Path]
 
 def parse_args(argv: Optional[List[str]] = None):
     parser = argparse.ArgumentParser(
-        description="Validate evidence manifests against the schema and the "
+        description="Validate acceptance records' manifests against the schema and the "
                     "invariants JSON Schema cannot express.")
     parser.add_argument("paths", nargs="*",
                         help="manifest files or directories (default: evidence/*/*/manifest.json)")

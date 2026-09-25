@@ -1336,3 +1336,106 @@ def test_every_committed_benchmark_validates_against_the_acceptance_schema():
         assert document["id"] == path.stem, "%s: id %r is not the file stem" % (path, document["id"])
         errors = [e.message for e in validator.iter_errors(document["acceptance"])]
         assert not errors, "%s: %s" % (path.relative_to(ROOT), errors[:3])
+
+
+# --------------------------------------------------------------------------
+# VALIDATION.md in the product repository
+
+
+def _validation_setup(workspace, tmp_path, monkeypatch):
+    """A filed record and the product's VALIDATION.md rendered from it."""
+    import check_validation
+    make_benchmark(workspace, "pi-6month")
+    make_manifest.main(manifest_argv(workspace, run_pair(tmp_path, [1.0], [1.0])))
+    manifest = (workspace["cc_test"] / "evidence" / "pycam5" / workspace["version"]
+                / "manifest.json")
+    validation = workspace["product"] / "VALIDATION.md"
+    import contextlib
+    import io
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert check_validation.main(["render", "--manifest", str(manifest)]) == 0
+    validation.write_text(out.getvalue())
+    return check_validation, validation
+
+
+def _check(check_validation, workspace, validation, *extra):
+    return check_validation.main([
+        "check", "--validation", str(validation),
+        "--product-repo", str(workspace["product"]),
+        "--evidence-dir", str(workspace["cc_test"] / "evidence"), *extra])
+
+
+def test_validation_md_is_rendered_from_the_record(workspace, tmp_path, monkeypatch):
+    _, validation = _validation_setup(workspace, tmp_path, monkeypatch)
+    text = validation.read_text()
+    assert "| Validated commit | `%s` |" % workspace["artifact_commit"] in text
+    assert "| Record           | `evidence/pycam5/%s/` |" % workspace["version"] in text
+    assert "| Result           | PASS |" in text
+    assert "| Tests            | 1 case — 1 passed, 0 failed, 0 error |" in text
+    assert "bitwise — 1 benchmark under `benchmarks/pycam5/`" in text
+    assert "https://github.com/a85tract/CESM-CC-Test/tree/main/evidence/pycam5/" in text
+    assert text.rstrip().endswith("> Current HEAD is the validated commit.")
+
+
+def test_validation_md_that_agrees_with_the_record_passes(workspace, tmp_path, monkeypatch, capsys):
+    cv, validation = _validation_setup(workspace, tmp_path, monkeypatch)
+    assert _check(cv, workspace, validation) == 0
+    out = capsys.readouterr().out
+    assert "0 error(s), 0 warning(s)" in out
+
+
+def test_drift_is_a_warning_reported_a_finding_under_strict_and_refreshable(
+        workspace, tmp_path, monkeypatch, capsys):
+    cv, validation = _validation_setup(workspace, tmp_path, monkeypatch)
+    (workspace["product"] / "later.txt").write_text("x\n")
+    git(workspace["product"], "add", ".")
+    git(workspace["product"], "commit", "-qm", "later")
+    (workspace["product"] / "later2.txt").write_text("y\n")
+    git(workspace["product"], "add", ".")
+    git(workspace["product"], "commit", "-qm", "later2")
+
+    assert _check(cv, workspace, validation) == 0
+    out = capsys.readouterr().out
+    assert "2 commit(s) ahead" in out and "drift line is stale" in out
+
+    assert _check(cv, workspace, validation, "--strict") == 1
+    capsys.readouterr()
+
+    assert _check(cv, workspace, validation, "--refresh") == 0
+    assert validation.read_text().rstrip().endswith(
+        "> Current HEAD is 2 commits ahead of the validated commit.")
+    assert _check(cv, workspace, validation, "--strict") == 0  # current again
+
+
+def test_a_pointer_that_disagrees_with_the_record_is_a_finding(
+        workspace, tmp_path, monkeypatch, capsys):
+    cv, validation = _validation_setup(workspace, tmp_path, monkeypatch)
+    text = validation.read_text()
+
+    validation.write_text(text.replace("| Result           | PASS |", "| Result           | FAIL |"))
+    assert _check(cv, workspace, validation) == 1
+    assert "Result says FAIL but the record says PASS" in capsys.readouterr().out
+
+    validation.write_text(text.replace(workspace["artifact_commit"], "0" * 40))
+    assert _check(cv, workspace, validation) == 1
+    out = capsys.readouterr().out
+    assert "is not the record's artifact.commit" in out
+
+    validation.write_text(text.replace(workspace["version"], "unreleased-deadbeef"))
+    assert _check(cv, workspace, validation) == 1
+    assert "is not in" in capsys.readouterr().out
+
+    validation.write_text("# nothing here\n")
+    assert _check(cv, workspace, validation) == 1
+    assert "no usable `Validated commit` row" in capsys.readouterr().out
+
+
+def test_the_filed_clubb_jax_record_renders_a_validation_md(capsys):
+    import check_validation
+    manifest = ROOT / "evidence" / "clubb-jax" / "unreleased-99c8b22f" / "manifest.json"
+    assert check_validation.main(["render", "--manifest", str(manifest)]) == 0
+    text = capsys.readouterr().out
+    assert "| Validated commit | `99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d` |" in text
+    assert "unit-differential — 15 benchmarks under `benchmarks/clubb-jax/`" in text
+    assert "| Record           | `evidence/clubb-jax/unreleased-99c8b22f/` |" in text

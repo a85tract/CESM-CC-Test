@@ -13,7 +13,7 @@ commit, rather than trusting two separate green checkmarks.
 
 | Half | What it does | Status |
 |---|---|---|
-| [Correctness](#correctness--does-the-port-compute-the-right-answer) | Compares a candidate run against a reference run and files the result as evidence | **Tools in place.** Schema, comparators, manifest builder and verifier all implemented; benchmarks written for clubb-jax (15) and clm-ml-jax (2); first acceptance record filed (clubb-jax, 15 cases, PASS, security NOT_RUN), not yet verified by CI |
+| [Correctness](#correctness--does-the-port-compute-the-right-answer) | Compares a candidate run against a reference run and files the result as evidence | **Tools in place.** Schema, comparators, manifest builder and verifier all implemented; benchmarks written for clubb-jax (15) and clm-ml-jax (2); first acceptance record filed (clubb-jax, 15 cases, PASS, security NOT_RUN); `verify-evidence.yml` verifies every record and the index on each pull request and push to main |
 | [Cyber](#cyber--the-hpc-devsecops-gate) | Secret scan, SBOM + CVE + VEX, AI code audit, AddressSanitizer | **In use.** Verified on Derecho |
 
 The Cyber half is also usable standalone against any git repository — it does
@@ -98,12 +98,13 @@ against them until the tolerance, norm, variable set, and spread test are agreed
 ## Status and where to start
 
 The four tools under `correctness/` are implemented. What is still missing is
-data and CI, not code: benchmarks exist for clubb-jax (15) and clm-ml-jax (2), and the
+data, not code: benchmarks exist for clubb-jax (15) and clm-ml-jax (2), and the
 first acceptance record is filed as `evidence/clubb-jax/unreleased-99c8b22f/` (15 cases,
-all PASS, security `NOT_RUN` because the Cyber gate has not run against that commit). CI
-does not verify it yet: `verify-evidence.yml` is migration step 6 of
-`docs/VALIDATION-ARCHITECTURE.md`. Next are that workflow and clubb-jax's `VALIDATION.md`
-(step 8 of `docs/CORRECTNESS-ORGANIZATION.md`).
+all PASS, security `NOT_RUN` because the Cyber gate has not run against that commit).
+`.github/workflows/verify-evidence.yml` verifies every record and the index on each pull
+request and push to main (migration step 6 of `docs/VALIDATION-ARCHITECTURE.md`, the
+`verify-evidence.yml` half). Next is clubb-jax's `VALIDATION.md` (step 8 of
+`docs/CORRECTNESS-ORGANIZATION.md`).
 
 | Module | Step | State |
 |---|---|---|
@@ -112,7 +113,7 @@ does not verify it yet: `verify-evidence.yml` is migration step 6 of
 | `verify_evidence.py` | 3 | done — schema plus all 11 error invariants and 6 warnings from `schemas/README.md` |
 | `index_evidence.py` | 4 | done — regenerates `evidence/INDEX.md` from the manifests; `--check` exits 1 if it is stale |
 | `compare_stats.py` | 8 | written, and decision **D4 is still open**. It evaluates both rule kinds under the readings recorded in `docs/VALIDATION-ARCHITECTURE.md` §8.1; the schema keeps its `provisional` marker and the verifier still rejects statistical evidence |
-| benchmarks, first acceptance record | 5, 4 | **both done for clubb-jax.** clubb-jax has 15 benchmarks, all PASS in the acceptance record filed 2026-09-24 (`verify_evidence.py`: 0 errors, 1 warning for `NOT_RUN`); clm-ml-jax has 2, blocked until the case commits the engine's schema-1 summary (`benchmarks/clm-ml-jax/README.md`). CI does not verify the record yet (step 6) |
+| benchmarks, first acceptance record | 5, 4 | **both done for clubb-jax.** clubb-jax has 15 benchmarks, all PASS in the acceptance record filed 2026-09-24 (`verify_evidence.py`: 0 errors, 1 warning for `NOT_RUN`); clm-ml-jax has 2, blocked until the case commits the engine's schema-1 summary (`benchmarks/clm-ml-jax/README.md`). `verify-evidence.yml` verifies the record on every pull request and push to main (step 6) |
 
 Each tool exits `0` PASS, `1` FAIL, `2` ERROR, and `2` genuinely means *nothing
 was compared*: a missing file, a mismatched file set, an unreadable format, an

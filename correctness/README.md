@@ -39,7 +39,10 @@ summary). The first acceptance record, step 4 of `../docs/CORRECTNESS-ORGANIZATI
 filed as `../evidence/clubb-jax/unreleased-99c8b22f/` (15 cases, PASS, security `NOT_RUN`;
 `verify_evidence.py` reports 0 errors and 1 warning). Its `cc_test.commit` (`86a46e8c`) is the
 commit that holds the tooling and benchmarks that produced it; see `../evidence/README.md`.
-Still to do: the `verify-evidence.yml` workflow, so CI checks it.
+`.github/workflows/verify-evidence.yml` checks it: on every pull request and push to `main` it runs
+`../schemas/test_schemas.py`, `pytest tests/test_correctness.py`, `verify_evidence.py` (with
+`--base-ref origin/<base>` on a pull request, so the append-only check runs) and
+`index_evidence.py --check`.
 The format examples under `schemas/examples/` name
 benchmarks that do not exist, on purpose, which is why the verifier reports
 `example-bitwise.manifest.json` as naming a missing benchmark.

@@ -23,7 +23,9 @@ report.txt       the comparator's raw text output
 `INDEX.md` is a cross-product table generated from the manifests by
 `correctness/index_evidence.py`. A pull request that files an acceptance record must run it and commit
 the result; `index_evidence.py --check` exits 1 when the index is stale, and
-`tests/test_correctness.py` runs that check.
+`tests/test_correctness.py` runs that check, as does CI (`.github/workflows/verify-evidence.yml`).
+The same workflow runs `correctness/verify_evidence.py --base-ref origin/<base>` on every pull
+request, so the append-only check (invariant 8) runs in CI against the base branch.
 
 The one acceptance record so far is `clubb-jax/unreleased-99c8b22f/`: clubb-jax `99c8b22f` against
 CLUBB_core `8ab3902`, 15 cases judged by RecastEngine `e3c6717` from the summaries the case

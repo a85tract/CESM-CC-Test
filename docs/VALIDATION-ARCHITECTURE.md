@@ -299,13 +299,14 @@ The sketch settles three of the five decisions carried over from the earlier dra
 
 | # | Decision | Status |
 |---|---|---|
-| D1 | Repository identity: CC-Test (CAM validation hub) vs `hpc-devsecops` (generic tool) | **Settled by the sketch** — CC-Test is the central validation infrastructure. `README.md` is rewritten around two halves; the Cyber half is annotated "generic, usable standalone", keeping the current install instructions valid. |
+| D1 | Repository identity: CC-Test (CAM validation hub) vs `hpc-devsecops` (generic tool) | **Settled by the sketch** — CC-Test is the central validation infrastructure. `README.md` is rewritten around two halves; the Cyber half is annotated "generic, usable standalone", keeping the current install instructions valid. **Superseded** by D8 (2026-09-24: CC-Test is its acceptance records and criteria; it runs no comparison) and D9 (2026-09-25: the Cyber tooling moves to the engine and recast-cesm). |
 | D2 | Version source for `evidence/<product>/<version>/` — all three repos have zero tags | **Settled in principle** — the sketch's `v0.2.0` layout means version directories are release tags, so products start tagging. Proposed bridge until a product cuts its first tag: `unreleased-<commit[:8]>`, with `artifact.commit` always authoritative. |
 | D3 | How evidence reaches CC-Test from the HPC side | **Settled** — manual pull request. Derecho compute nodes generally have no outbound network, so automated push is not available. |
 | D4 | Pipeline 2 statistical criteria | **Settled for the ULP family on 2026-09-24** as the `unit-differential` acceptance kind (`CORRECTNESS-ORGANIZATION.md` §3.3), transcribed from what `recast.verify.tolerance` enforces. **The ensemble-spread family is still open.** "1.24e-6 rel diff" and "within ensemble spread" must become executable: tolerance value and norm, the compared variable set, ensemble member count, and the spread test. `compare_stats.py` now exists and evaluates the two rule kinds the schema names, but it did **not** settle D4: it states the reading it uses for each undecided point (§8.1), the schema keeps its `provisional` marker, and `verify_evidence.py` still rejects any manifest that files evidence against it. |
 | D5 | Cyber-half config gap: no product repo had `.gitleaks.toml`, `.vex/openvex.json`, or `ai_audit.py`, so those checks skipped silently | **Settled — in scope, and the CC-Test side is done.** `ai_audit.py` did not exist anywhere, so it was written rather than merely installed. Templates for all three now live in `templates/`, `tools/install-config.sh` installs them into a target repo, and every acceptance record's manifest records the Cyber verdict (§6). Installing into the six product repos is step 10. |
 | D7 | Where the whole-model comparator lives | **Settled 2026-09-24** — the engine, as the `fullmodel.bitwise` verifier its `refactor-todo` recipe already names; the CAM NetCDF reader is injected from `recast-cesm`. See `CORRECTNESS-ORGANIZATION.md` §3.1. |
 | D8 | What CC-Test is | **Settled 2026-09-24** — its acceptance records and the criteria, nothing else; it runs no comparison, and the Cyber tooling's ownership moves to the engine's `recast.scan`. Supersedes D1's reading. See `CORRECTNESS-ORGANIZATION.md` §3.1. |
+| D9 | Results source for the site; timing of the Cyber move | **Settled 2026-09-25** — the SciRecast website reads CC-Test's `evidence/index.json`; the Cyber move is split into steps 9a-9e and runs before step 6. See `CORRECTNESS-ORGANIZATION.md` §3.1. |
 
 ### 8.1 D4 readings decided by implementation on 2026-09-03, revisit if wrong
 
@@ -348,7 +349,7 @@ Ordered so each step is independently reviewable.
 | 7 | Add `VALIDATION.md` + `validation.yml` to PyCAM5 | PyCAM5 | 6 |
 | 8 | **Half done** — `compare_stats.py` is written and evaluates both rule kinds, under the readings recorded in §8.1. Still needed: agreement on D4 (which turns those readings from a written default into the criterion), removing the schema's `provisional` marker, and extending to `jax-kernels` / `numba-kernels` / `pyphys-bridge` | CC-Test + product repos | 7, D4 |
 | 9 | Extend to `freeCAM` (bitwise; the CAM-SIMA oracle gate becomes a benchmark case) | CC-Test + freeCAM | 7 |
-| 10 | **CC-Test side DONE** — `ai_audit.py` written, all three templates in `templates/`, `tools/install-config.sh` installs them, runner reports per-scan state. Remaining: run the installer against the six product repos and commit the result | Product repos | D5 |
+| 10 | **CC-Test side DONE** — `ai_audit.py` written, all three templates in `templates/`, `tools/install-config.sh` installs them, runner reports per-scan state. Remaining: run the installer against the six product repos and commit the result. Since 2026-09-25 this is done as part of `CORRECTNESS-ORGANIZATION.md` step 9d, where the installer becomes a wrapper that installs the engine's templates; not the same step as that document's step 10 | Product repos | D5 |
 | 11 | Rewrite CC-Test `README.md` around the two halves; update the overview's "Correctness later" line | CC-Test + overview | 8, 9 |
 
 Step 2 should **move** rather than copy: PyCAM5 keeps a thin wrapper or simply a pointer in
@@ -418,3 +419,9 @@ there is outbound network: grype's vulnerability database and the AI audit's API
 egress, which Derecho compute nodes do not have. Run the gate on a login node or locally
 and feed its `summary.json` into `make_manifest.py`; the schema's `INCOMPLETE` status
 exists so a partial run is still recordable rather than silently omitted.
+
+**Scheduled to move (2026-09-25).** The tooling this section describes is scheduled to move
+to the engine and recast-cesm in steps 9a-9e of `CORRECTNESS-ORGANIZATION.md`. The
+manifest's `security` block stays; its source becomes the engine `audit` recipe's output
+once step 9a defines that output as a numbered interface, and `summary.json` is read until
+then.

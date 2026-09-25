@@ -89,8 +89,9 @@ branch (8). Each is then reported as `SKIP` with the reason rather than counted 
 6. `cases[].benchmark` names a file that exists in this repository, and `cases[].id`
    equals that file's stem.
 7. `cc_test.commit` resolves in this repository.
-8. `evidence/` is append-only: a manifest already present on the base branch must not be
-   modified by a pull request.
+8. `evidence/` is append-only: no file of an acceptance record already on the base branch
+   (`evidence/<product>/<version>/*`) may be modified, deleted or renamed by a pull request.
+   `INDEX.md` and `README.md` are not records and are exempt.
 9. `acceptance.kind: statistical` is rejected while its `status` is `provisional`.
 10. `security.scanned_commit` equals `artifact.commit` — otherwise the Cyber verdict
     describes different code than the correctness verdict.

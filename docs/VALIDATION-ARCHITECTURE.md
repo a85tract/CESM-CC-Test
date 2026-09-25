@@ -425,8 +425,8 @@ recast-cesm in steps 9a-9e of `CORRECTNESS-ORGANIZATION.md`. Step 9a landed 2026
 branch `audit-gate-summary`): `recast run <recipe> <root> --gate-summary PATH` writes the same
 `summary.json` shape `devsecops-local.sh` writes, plus `"schema": 1`, and `make_manifest.py
 --security-summary` reads either producer's file unchanged. The manifest's `security` block
-therefore keeps its source through the move (the LLM audit itself goes to recast-cesm, not the
-engine, step 9b). One translation happens in `make_manifest.py`: the gate's `PASS` does not
+therefore keeps its source through the move (the LLM audit itself went to recast-cesm, not the
+engine: step 9b, the `llm-audit` scanner in its `audit-cesm` recipe, landed 2026-09-25). One translation happens in `make_manifest.py`: the gate's `PASS` does not
 count a `not_configured` plane against it, the schema's `PASS` means every plane ran, so a
 gate `PASS` with an unrun plane is recorded as `INCOMPLETE` with a warning. Findings never
 enter CC-Test.

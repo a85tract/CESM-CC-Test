@@ -111,7 +111,7 @@ request and push to main (migration step 6 of `docs/VALIDATION-ARCHITECTURE.md`,
 | `compare_runpair.py` | 2 | done — the PyCAM5 comparator with `--json`, neutral run-directory options, and the three-valued exit code |
 | `make_manifest.py` | 3 | done — comparator JSON + benchmark + environment probe + the Cyber gate's `summary.json` → a manifest |
 | `verify_evidence.py` | 3 | done — schema plus all 11 error invariants and 6 warnings from `schemas/README.md` |
-| `index_evidence.py` | 4 | done — regenerates `evidence/INDEX.md` from the manifests; `--check` exits 1 if it is stale |
+| `index_evidence.py` | 4 | done — regenerates `evidence/INDEX.md` and `evidence/index.json` from the manifests; `--check` exits 1 if either is stale or missing |
 | `compare_stats.py` | 8 | written, and decision **D4 is still open**. It evaluates both rule kinds under the readings recorded in `docs/VALIDATION-ARCHITECTURE.md` §8.1; the schema keeps its `provisional` marker and the verifier still rejects statistical evidence |
 | benchmarks, first acceptance record | 5, 4 | **both done for clubb-jax.** clubb-jax has 15 benchmarks, all PASS in the acceptance record filed 2026-09-24 (`verify_evidence.py`: 0 errors, 1 warning for `NOT_RUN`); clm-ml-jax has 2, blocked until the case commits the engine's schema-1 summary (`benchmarks/clm-ml-jax/README.md`). `verify-evidence.yml` verifies the record on every pull request and push to main (step 6) |
 

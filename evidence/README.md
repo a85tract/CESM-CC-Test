@@ -21,9 +21,17 @@ report.txt       the comparator's raw text output
 ```
 
 `INDEX.md` is a cross-product table generated from the manifests by
-`correctness/index_evidence.py`. A pull request that files an acceptance record must run it and commit
-the result; `index_evidence.py --check` exits 1 when the index is stale, and
-`tests/test_correctness.py` runs that check, as does CI (`.github/workflows/verify-evidence.yml`).
+`correctness/index_evidence.py`, which writes `index.json` beside it from the same manifests.
+`index.json` (`{"schema": 1, "source": ..., "records": [...]}`, newest validation first) holds one
+record per acceptance record: `product`, `version`, `path`, `artifact` (name, repo, commit),
+`reference` (model, commit_or_tag), `cases` (total, passed, ids), `result`, `security` (the gate
+status), `evidence_class`, `validated` (the manifest timestamp) and `cc_test_commit`. Nothing in it
+is generated at write time, so two runs over the same records give the same bytes. The SciRecast
+website (`a85tract/SciRecast`) fetches it to list what has been validated (decision D9 in
+`docs/CORRECTNESS-ORGANIZATION.md`). A pull request that files an acceptance record must run
+`index_evidence.py` and commit both files; `index_evidence.py --check` exits 1 when either is stale
+or missing, and `tests/test_correctness.py` runs that check, as does CI
+(`.github/workflows/verify-evidence.yml`).
 The same workflow runs `correctness/verify_evidence.py --base-ref origin/<base>` on every pull
 request, so the append-only check (invariant 8) runs in CI against the base branch.
 
@@ -40,7 +48,7 @@ the record, so that `cc_test.commit` names the code that made it.
 **Append-only.** Once an acceptance record lands it is immutable. A re-run produces a new
 version directory; it never edits an old one. `verify_evidence.py --base-ref REF` enforces
 this against the base branch: a pull request that modifies, deletes or renames any file of
-an existing record fails. `INDEX.md` and this README are not records and are exempt.
+an existing record fails. `INDEX.md`, `index.json` and this README are not records and are exempt.
 Without `--base-ref` there is no base branch to diff against, so the check is reported as
 skipped rather than silently passed.
 

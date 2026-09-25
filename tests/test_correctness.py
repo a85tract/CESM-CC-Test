@@ -1282,7 +1282,26 @@ def test_index_is_generated_from_the_manifests_and_check_detects_staleness(works
         workspace["version"], workspace["version"]) in index
     assert index_evidence.main(["--check"]) == 0
 
+    # The machine-readable twin: same entries, fields a listing needs, nothing
+    # generated at write time, so it is byte-stable and the site can read it.
+    document = json.loads((workspace["cc_test"] / "evidence" / "index.json").read_text())
+    assert document["schema"] == 1
+    record, = document["records"]
+    assert record["product"] == "pycam5" and record["version"] == workspace["version"]
+    assert record["path"] == "pycam5/%s/" % workspace["version"]
+    assert record["artifact"]["commit"] == workspace["artifact_commit"]
+    assert record["artifact"]["repo"] == "https://github.com/a85tract/PyCAM5"
+    assert record["cases"] == {"total": 1, "passed": 1, "ids": ["pi-6month"]}
+    assert record["result"] == "PASS" and record["security"] == "NOT_RUN"
+    assert record["cc_test_commit"] == workspace["cc_commit"]
+
     (workspace["cc_test"] / "evidence" / "INDEX.md").write_text(index + "| edited by hand |\n")
+    assert index_evidence.main(["--check"]) == 1
+    index_evidence.main([])
+    assert index_evidence.main(["--check"]) == 0
+    (workspace["cc_test"] / "evidence" / "index.json").write_text("{}\n")
+    assert index_evidence.main(["--check"]) == 1
+    (workspace["cc_test"] / "evidence" / "index.json").unlink()
     assert index_evidence.main(["--check"]) == 1
 
 

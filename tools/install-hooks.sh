@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 #
-# Install the hpc-devsecops pre-push hook into a target repo.
+# Install CC-Test's pre-push hook into a target repo.
 #
 # Usage: install-hooks.sh [--force] [TARGET_REPO]
 #
-# The hook is symlinked, so updating hpc-devsecops updates the hook everywhere.
+# The hook is symlinked, so updating this checkout updates the hook everywhere.
 # Uninstall: rm <repo>/.git/hooks/pre-push
+#
+# Deliberately not a wrapper over the engine's tools/install-hooks.sh: that
+# one installs the engine's hook, which runs a fixed recipe. This installs
+# hooks/pre-push here, which runs the engine's hook after choosing the recipe
+# for the repository (audit, or audit-cesm with the LLM audit plane; see
+# tools/engine.sh). Same script otherwise, including the refusal to overwrite
+# a hook that is not ours without --force.
 
 set -euo pipefail
 
@@ -35,4 +42,4 @@ ln -sfn "$SELF/hooks/pre-push" "$DEST" 2>/dev/null || {
 chmod +x "$SELF/hooks/pre-push" "$DEST" 2>/dev/null || true
 
 echo "✅ installed pre-push hook → $DEST"
-echo "   now 'git push' from $REPO runs hpc-devsecops first and blocks on issues."
+echo "   now 'git push' from $REPO runs the recast audit gate first and blocks on issues."

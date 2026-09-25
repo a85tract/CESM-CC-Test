@@ -14,7 +14,7 @@ commit, rather than trusting two separate green checkmarks.
 | Half | What it does | Status |
 |---|---|---|
 | [Correctness](#correctness--does-the-port-compute-the-right-answer) | Compares a candidate run against a reference run and files the result as evidence | **Tools in place.** Schema, comparators, manifest builder and verifier all implemented; benchmarks written for clubb-jax (15) and clm-ml-jax (2); first acceptance record filed (clubb-jax, 15 cases, PASS, security NOT_RUN); `verify-evidence.yml` verifies every record and the index on each pull request and push to main |
-| [Cyber](#cyber--the-hpc-devsecops-gate) | Secret scan, SBOM + CVE + VEX, AI code audit, AddressSanitizer | **In use.** Verified on Derecho |
+| [Cyber](#cyber--the-hpc-devsecops-gate) | Secret scan, SBOM + CVE + VEX, AI code audit, AddressSanitizer | **In use.** Verified on Derecho. Since 2026-09-25 the checks are RecastEngine's `audit` recipe and the scripts here are wrappers over it (step 9d); the sanitizer plane and the AI audit's own script follow once recast-cesm's scanners are merged |
 
 The Cyber half is also usable standalone against any git repository — it does
 not depend on anything CESM-specific.
@@ -30,9 +30,12 @@ tests/         run.sh (Cyber, integration) and test_correctness.py (Correctness,
 docs/          VALIDATION-ARCHITECTURE.md — the plan, ownership, open decisions
                CORRECTNESS-ORGANIZATION.md — which repository owns which part (D7, D8)
 
-tools/         the Cyber gate: devsecops-local.sh, asan.sh, install-hooks.sh, install-config.sh
-templates/     starter .gitleaks.toml / .vex/openvex.json / ai_audit.py for a target repo
-hooks/         pre-push
+tools/         the Cyber gate's entry points: devsecops-local.sh, install-config.sh (wrappers
+               over RecastEngine's audit recipe and installer; engine.sh finds the engine),
+               install-hooks.sh, asan.sh (not wrapped yet)
+templates/     hpc-devsecops's starter .gitleaks.toml / .vex/openvex.json / ai_audit.py;
+               install-config.sh installs the engine's templates now, these go with step 9e
+hooks/         pre-push: chooses the recipe, then runs the engine's hook
 hpc/           asan-cam.pbs
 SECURITY.md    the gate's security model, trust boundaries, and disclosure policy
 ```
@@ -103,8 +106,10 @@ first acceptance record is filed as `evidence/clubb-jax/unreleased-99c8b22f/` (1
 all PASS, security `NOT_RUN` because the Cyber gate has not run against that commit).
 `.github/workflows/verify-evidence.yml` verifies every record and the index on each pull
 request and push to main (migration step 6 of `docs/VALIDATION-ARCHITECTURE.md`, the
-`verify-evidence.yml` half). Next is clubb-jax's `VALIDATION.md` (step 8 of
-`docs/CORRECTNESS-ORGANIZATION.md`).
+`verify-evidence.yml` half). clubb-jax carries the `VALIDATION.md` rendered from that
+record and a `validation.yml` that calls `.github/workflows/validation-callable.yml` here
+(step 8 of `docs/CORRECTNESS-ORGANIZATION.md`, first product; `correctness/check_validation.py`
+renders and checks the file).
 
 | Module | Step | State |
 |---|---|---|
@@ -146,6 +151,18 @@ secrets) while they are still on your login node, not after they reach GitHub.
 Built for scientific codebases on HPC (rootless install, no Docker, works
 offline), but it is generic — point it at any git repo.
 
+Since 2026-09-25 (step 9d of `docs/CORRECTNESS-ORGANIZATION.md`) the checks
+themselves are [RecastEngine](https://github.com/a85tract/RecastEngine)'s `audit`
+recipe — the same gitleaks and syft/grype/VEX stages, gating the same way — run
+as `recast run audit <repo> --range <range> --gate-summary <out>/summary.json`.
+`tools/devsecops-local.sh`, `tools/install-config.sh` and `hooks/pre-push` are
+wrappers over the engine's scripts (`tools/engine.sh` finds it), keeping the
+flags, the report location and the exit contract below; a user of the pre-push
+hook sees no change. What the wrappers add is the choice of recipe: `audit-cesm`,
+which carries recast-cesm's LLM audit plane, for a repository that opted into the
+AI audit. The engine's `docs/cyber-gate.md` is the handoff: what moved, what was
+kept, what was changed on purpose.
+
 ## Status
 
 Verified on Derecho (NCAR) as the local + sanitizer half of a three-plane
@@ -155,7 +172,7 @@ PR — lives in the target repo's `.github/`):
 - **Local gate** — gitleaks, `syft → grype → VEX`, and the Claude AI audit all
   run locally against a repo's own config; a `pre-push` hook blocks pushes on
   findings. Reuses the target repo's `.gitleaks.toml` / `.vex/openvex.json` /
-  `ai_audit.py`, so local and cloud results never drift.
+  `.recast-audit.json`, so local and cloud results never drift.
 - **Sanitizer plane** — `tools/asan.sh` compiles and runs a Fortran/C reproducer
   under `ifx -fsanitize=address`; confirmed it catches a Fortran
   heap-buffer-overflow with exact `file:line`. `hpc/asan-cam.pbs` scaffolds the
@@ -181,11 +198,13 @@ repo's own* configuration, so local and cloud never drift.
 |---|---|---|
 | 🔑 Secret scan | `gitleaks` | `.gitleaks.toml` |
 | 📦 SBOM + CVE + VEX | `syft` → `grype` | `.vex/openvex.json` |
-| 🤖 AI code audit | your `ai_audit.py` (Claude) | `.github/scripts/ai_audit.py` |
+| 🤖 AI code audit | recast-cesm's `llm-audit` scanner (Claude), a stage of the `audit-cesm` recipe | opted in by `.github/scripts/ai_audit.py` being present, or `RECAST_AUDIT_RECIPE=audit-cesm` |
 
-Install the three configs into a target repo with `tools/install-config.sh <repo>`
-— `templates/` holds the versions to start from, including a working `ai_audit.py`.
-Commit them in the target repo so CI reads the same config the local gate does.
+Install the configs into a target repo with `tools/install-config.sh <repo>`: the
+engine's `.gitleaks.toml`, `.vex/openvex.json` and `.recast-audit.json` (the run
+config the hook hands to `recast`). Commit them in the target repo so CI reads the
+same config the local gate does. `ai_audit.py` is no longer installed — the audit
+is a scanner now — but a repository that still carries it is treated as opted in.
 
 The gate **fails closed**: if a configured or required check does not actually run
 (missing tool, unavailable key, malformed output), it reports **INCOMPLETE**, never
@@ -202,23 +221,16 @@ Single static binaries in `~/bin` (no root needed):
 gitleaks version && syft version && grype version
 ```
 
-For the AI audit, create a venv with the SDK (the runner auto-detects and uses
-`~/hpc-devsecops/.venv`):
+And the engine: a RecastEngine checkout with `recast` installed into an
+environment that is active when you push (an editable install, `uv pip install -e`,
+is what the wrappers expect). `RECAST_BIN` names the executable if it is not on
+PATH; `RECAST_HOME` names the checkout if the wrappers cannot derive it from the
+executable. A missing engine blocks the push (exit 2), as a missing scanner did.
 
-```bash
-python3 -m venv ~/hpc-devsecops/.venv
-~/hpc-devsecops/.venv/bin/pip install anthropic
-```
-
-Put the API key in `~/.config/hpc-devsecops.env` (chmod 600) — the runner
-auto-sources it, so it works even from a `git push` hook:
-
-```bash
-echo 'export ANTHROPIC_API_KEY=sk-ant-...' > ~/.config/hpc-devsecops.env
-chmod 600 ~/.config/hpc-devsecops.env
-```
-
-The login node has outbound network for the API; compute nodes usually do not.
+For the AI audit, install recast-cesm into the same environment (its `llm-audit`
+scanner and the `audit-cesm` recipe), and put the key where its provider reads it:
+`ANTHROPIC_API_KEY` in the environment, else `~/.config/recast/agent.env` with mode
+0600. The login node has outbound network for the API; compute nodes usually do not.
 
 One-time, so `grype` can run offline afterwards:
 
@@ -266,6 +278,7 @@ CAM with inputs) and ~2–3× slower, so it lives here, not in `git push`.
 git clone git@github.com:a85tract/CESM-CC-Test.git ~/hpc-devsecops
 # Cloned somewhere else? point the toolkit at it:
 #   export HPC_DEVSECOPS_HOME=/path/to/your/checkout
+# The engine: see Requirements (RECAST_BIN, RECAST_HOME).
 ```
 
 ## Usage
@@ -277,24 +290,21 @@ git clone git@github.com:a85tract/CESM-CC-Test.git ~/hpc-devsecops
 # audit only what you're about to push, and BLOCK on issues
 ~/hpc-devsecops/tools/devsecops-local.sh --vs-remote --block ~/cam_cesm2_1_rel
 
-# audit staged changes before committing
-~/hpc-devsecops/tools/devsecops-local.sh --staged
+# audit an explicit range (what the pre-push hook does)
+~/hpc-devsecops/tools/devsecops-local.sh --range origin/main..HEAD --block
 ```
 
 ### Options
 
 | Flag | Meaning |
 |---|---|
-| `--staged` | audit staged changes (`git diff --cached`) |
-| `--worktree` | audit all uncommitted changes (`git diff HEAD`) |
-| `--vs-remote` | audit commits not yet pushed (default when the branch has an upstream) |
+| `--vs-remote` | audit commits not yet pushed (the default; needs an upstream or `--base`) |
 | `--base REF` | base ref for `--vs-remote` (default: the branch upstream) |
+| `--range RANGE` | audit an explicit revision range (what the pre-push hook passes) |
 | `--block` | fail on findings (exit 1) and fail closed on an incomplete scan (exit 2) |
 | `--require-complete` | block on an incomplete gate even without `--block` |
-| `--no-ai` | skip the AI code audit |
-
-`--vs-remote` (new commits only) is the quietest mode — it won't re-flag
-pre-existing findings. `--worktree` scans everything and is the noisiest.
+| `--no-ai` | run the `audit` recipe, without the LLM audit plane |
+| `--staged`, `--worktree` | **not available**: the engine's secret scan reads history, not a patch; the wrapper refuses them (exit 2) rather than scan something wider than asked |
 
 ## Automatic pre-push gate
 
@@ -302,23 +312,34 @@ pre-existing findings. `--worktree` scans everything and is the noisiest.
 ~/hpc-devsecops/tools/install-hooks.sh ~/cam_cesm2_1_rel
 ```
 
-Installs a symlinked `pre-push` hook so `git push` from that repo runs
-hpc-devsecops first and **blocks** the push on findings or an incomplete scan.
-The hook reads Git's actual local/remote SHA pairs, including new branches and
-multi-ref pushes. Emergency bypass: `git push --no-verify`. Uninstall:
-`rm <repo>/.git/hooks/pre-push`.
+Installs a symlinked `pre-push` hook so `git push` from that repo runs the
+engine's audit recipe first and **blocks** the push on findings or an incomplete
+scan. The hook here chooses the recipe (`audit`, or `audit-cesm` for a repository
+that opted into the AI audit; `RECAST_AUDIT_RECIPE` overrides) and runs the
+engine's `tools/pre-push`, which reads Git's actual local/remote SHA pairs,
+including new branches and multi-ref pushes, and audits exactly the range each
+push would publish. A repository that opted in but whose environment has no
+`audit-cesm` is blocked (exit 2), as an unavailable AI audit blocked before, rather
+than gated more quietly than it asked for. Emergency bypass: `git push --no-verify`.
+Uninstall: `rm <repo>/.git/hooks/pre-push`.
 
 ## Output
 
-Reports are written under `~/audits/hpc-devsecops/<repo>/<timestamp>/`:
+The gate summary is written under `~/audits/recast/<repo>/<timestamp>-<pid>/`
+(`HPC_DEVSECOPS_AUDIT_ROOT` or `RECAST_AUDIT_ROOT`, if set; the hook adds a
+`<branch>/` level):
 
 ```
-pr.diff            gitleaks.sarif     grype.json     sbom.spdx.json
-ai-audit.sarif     ai-audit-report.md summary.txt    summary.json
+summary.json
 ```
 
-Nothing is written under `/glade/work`. `summary.json` is the machine-readable
-mirror of `summary.txt` (status `PASS` / `FINDINGS` / `INCOMPLETE`). Exit codes:
+That is the file `correctness/make_manifest.py --security-summary` reads into an
+acceptance record: a state and counts per scan and a status `PASS` / `FINDINGS` /
+`INCOMPLETE`, never a finding. The findings themselves are records in the engine's
+store (`RECAST_FINDINGS_HOME`, default `~/.recast/findings`), where they are
+adjudicated before anyone decides on disclosure; the per-scanner raw output
+(`gitleaks.sarif`, `grype.json`, the SBOM) is no longer kept beside the summary.
+Nothing is written under `/glade/work`. Exit codes:
 `0` clean or report-only; `1` findings under `--block`; `2` an incomplete gate
 under `--block` / `--require-complete`, or a usage/environment error.
 
@@ -327,8 +348,7 @@ under `--block` / `--require-complete`, or a usage/environment error.
 - An AI state other than `reviewed` (e.g. `unavailable`, `error`,
   `not_configured`) means the audit did not actually run — **not** the same as
   reviewed-clean, and it makes the gate `INCOMPLETE`.
-- Run the AI step on the login node (egress), or point the target repo's
-  `ai_audit.py` at a local vLLM endpoint for a fully offline gate.
+- Run the AI step on the login node (egress); compute nodes have none.
 - The same three static binaries (gitleaks, syft, grype) run in CI and on HPC;
   the only HPC-specific step is pre-staging the grype DB for offline use.
 

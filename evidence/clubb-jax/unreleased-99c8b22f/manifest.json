@@ -1,0 +1,1753 @@
+{
+  "schema_version": "1.0",
+  "evidence_class": "complete",
+  "artifact": {
+    "name": "clubb-jax",
+    "repo": "https://github.com/a85tract/clubb-jax",
+    "commit": "99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d",
+    "version": "unreleased-99c8b22f"
+  },
+  "reference": {
+    "model": "CLUBB_core, larson-group/clubb_release",
+    "commit_or_tag": "8ab3902",
+    "provenance": "two oracles, named per case in the benchmark: f2py-golden-clubb (the same Fortran compiled through f2py, called on generated in-domain inputs) for the sampled tiers, dump-replay (clubb_standalone instrumented, run_scm.py on the recorded cases) for the rest; recordings made with GNU Fortran (Homebrew GCC 16.1.0) -O1 -fno-fast-math -ffp-contract=off, statistics off, CLUBB_REAL_TYPE=8"
+  },
+  "cc_test": {
+    "version": "unreleased-86a46e8c",
+    "commit": "86a46e8c712a59bc2d3c9a4be5f77adb4e139224"
+  },
+  "environment": {
+    "machine": "macOS-26.5.2-arm64-arm-64bit, Apple-silicon laptop, CPU only",
+    "compiler": "GNU Fortran (Homebrew GCC 16.1.0) 16.1.0, -O1 -fno-fast-math -ffp-contract=off",
+    "python": "CPython 3.11.16",
+    "jax": "0.10.2",
+    "engine": "recast 0.0.1+pro at e3c6717, extension recast-clubb",
+    "xla_flags": "--xla_backend_optimization_level=0 --xla_disable_hlo_passes=algsimp"
+  },
+  "cases": [
+    {
+      "id": "cases-e3sm-jax",
+      "benchmark": "benchmarks/clubb-jax/cases-e3sm-jax.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "ulp_tiered",
+            "verifier": "differential.tolerance",
+            "dominant_at": 0.001,
+            "ulp_gate": 32,
+            "rel_gate": 1e-12,
+            "gating": true,
+            "note": "every dominant element (within 1e-3 of the largest in its row) within 32 ULP of the Fortran, every element within 1e-12 relative; verdicts taken with XLA's fused multiply-add and algebraic simplifier off",
+            "waivers": {
+              "fortran:advance_clubb_core_module": {
+                "ulp_gate": 128,
+                "reason": "conditioning, not a defect: the worst dominant element is 128 ULP out; moving every erf and exp result of the bit-exact reference by one ULP moves dominant elements by 42,613,738 ULP (1.0 relative) on the worst recorded samples, so 128 ULP is inside what the reference's own last bit is worth there. The candidate's max_rel stays within 1e-12 (README section 1, 'One ULP of erf under the trapezoidal rule')"
+              },
+              "fortran:pdf_closure_module": {
+                "ulp_gate": 128,
+                "reason": "conditioning, not a defect: the worst dominant element is 128 ULP out; moving every erf and exp result of the bit-exact reference by one ULP moves dominant elements by 17,201,248 ULP (2.4e-10 relative) on the worst recorded samples, so 128 ULP is inside what the reference's own last bit is worth there. The candidate's max_rel stays within 1e-12 (README section 1, 'One ULP of erf under the trapezoidal rule')"
+              }
+            },
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.tolerance",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "ulp_tiered",
+            "gating": true,
+            "passed": true,
+            "detail": "worst dominant 128 ULP (fortran:advance_clubb_core_module) vs gate 32; worst max_rel 2.48e-15 (fortran:advance_clubb_core_module) vs 1e-12; waivers applied: fortran:advance_clubb_core_module<=128, fortran:pdf_closure_module<=128; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-e3sm-jax.json",
+            "md5": "d2b05aa5d1ace2b03a50e826239f3b18",
+            "bytes": 15112
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-e3sm-numpy",
+      "benchmark": "benchmarks/clubb-jax/cases-e3sm-numpy.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:advance_clubb_core_module); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:advance_clubb_core_module); required at least bit_exact; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:advance_clubb_core_module); required at least symbolic; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-e3sm-numpy.json",
+            "md5": "2cbe59a91c41565f01e25e1404265fad",
+            "bytes": 18726
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-late-jax",
+      "benchmark": "benchmarks/clubb-jax/cases-late-jax.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "ulp_tiered",
+            "verifier": "differential.tolerance",
+            "dominant_at": 0.001,
+            "ulp_gate": 32,
+            "rel_gate": 1e-12,
+            "gating": true,
+            "note": "every dominant element (within 1e-3 of the largest in its row) within 32 ULP of the Fortran, every element within 1e-12 relative; verdicts taken with XLA's fused multiply-add and algebraic simplifier off",
+            "waivers": {
+              "fortran:advance_clubb_core_module": {
+                "ulp_gate": 128,
+                "reason": "conditioning, not a defect: the worst dominant element is 128 ULP out; moving every erf and exp result of the bit-exact reference by one ULP moves dominant elements by 39,092,448 ULP (6.8e-10 relative) on the worst recorded samples, so 128 ULP is inside what the reference's own last bit is worth there. The candidate's max_rel stays within 1e-12 (README section 1, 'One ULP of erf under the trapezoidal rule')"
+              },
+              "fortran:pdf_closure_module": {
+                "ulp_gate": 192,
+                "reason": "conditioning, not a defect: the worst dominant element is 192 ULP out; moving every erf and exp result of the bit-exact reference by one ULP moves dominant elements by 39,049,408 ULP (3.7e-10 relative) on the worst recorded samples, so 192 ULP is inside what the reference's own last bit is worth there. The candidate's max_rel stays within 1e-12 (README section 1, 'One ULP of erf under the trapezoidal rule')"
+              }
+            },
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.tolerance",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "ulp_tiered",
+            "gating": true,
+            "passed": true,
+            "detail": "worst dominant 192 ULP (fortran:pdf_closure_module) vs gate 32; worst max_rel 4.85e-15 (fortran:advance_clubb_core_module) vs 1e-12; waivers applied: fortran:advance_clubb_core_module<=128, fortran:pdf_closure_module<=192; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-late-jax.json",
+            "md5": "2ac2c721edc36eeddaff2e739a449ea9",
+            "bytes": 14805
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-late-numpy",
+      "benchmark": "benchmarks/clubb-jax/cases-late-numpy.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:advance_clubb_core_module); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:advance_clubb_core_module); required at least bit_exact; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:advance_clubb_core_module); required at least symbolic; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-late-numpy.json",
+            "md5": "c2d9a1dda7881e7a5c5eb7c3ab7694e7",
+            "bytes": 18400
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-more-jax",
+      "benchmark": "benchmarks/clubb-jax/cases-more-jax.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "ulp_tiered",
+            "verifier": "differential.tolerance",
+            "dominant_at": 0.001,
+            "ulp_gate": 32,
+            "rel_gate": 1e-12,
+            "gating": true,
+            "note": "every dominant element (within 1e-3 of the largest in its row) within 32 ULP of the Fortran, every element within 1e-12 relative; verdicts taken with XLA's fused multiply-add and algebraic simplifier off",
+            "ungated": {
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.tolerance",
+            "gating": true,
+            "ungated": {
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "ulp_tiered",
+            "gating": true,
+            "passed": true,
+            "detail": "worst dominant 32 ULP (fortran:pdf_closure_module) vs gate 32; worst max_rel 1.76e-15 (fortran:advance_clubb_core_module) vs 1e-12; ungated: fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-more-jax.json",
+            "md5": "ce6b35b27fb6f8862d74147916cc9821",
+            "bytes": 15037
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-more-numpy",
+      "benchmark": "benchmarks/clubb-jax/cases-more-numpy.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's",
+            "ungated": {
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true,
+            "ungated": {
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated",
+            "ungated": {
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:advance_clubb_core_module); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:advance_clubb_core_module); required at least bit_exact; ungated: fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:advance_clubb_core_module); required at least symbolic; ungated: fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-more-numpy.json",
+            "md5": "711df239117610dedadf2e8602481692",
+            "bytes": 19264
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-multicol-jax",
+      "benchmark": "benchmarks/clubb-jax/cases-multicol-jax.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "ulp_tiered",
+            "verifier": "differential.tolerance",
+            "dominant_at": 0.001,
+            "ulp_gate": 32,
+            "rel_gate": 1e-12,
+            "gating": true,
+            "note": "every dominant element (within 1e-3 of the largest in its row) within 32 ULP of the Fortran, every element within 1e-12 relative; verdicts taken with XLA's fused multiply-add and algebraic simplifier off",
+            "waivers": {
+              "fortran:advance_clubb_core_module": {
+                "ulp_gate": 64,
+                "reason": "conditioning, not a defect: the worst dominant element is 64 ULP out; moving every erf and exp result of the bit-exact reference by one ULP moves dominant elements by 44,478,880 ULP (1.0 relative) on the worst recorded samples, so 64 ULP is inside what the reference's own last bit is worth there. The candidate's max_rel stays within 1e-12 (README section 1, 'One ULP of erf under the trapezoidal rule')"
+              },
+              "fortran:pdf_closure_module": {
+                "ulp_gate": 64,
+                "reason": "conditioning, not a defect: the worst dominant element is 64 ULP out; moving every erf and exp result of the bit-exact reference by one ULP moves dominant elements by 44,228,480 ULP (2.7e-09 relative) on the worst recorded samples, so 64 ULP is inside what the reference's own last bit is worth there. The candidate's max_rel stays within 1e-12 (README section 1, 'One ULP of erf under the trapezoidal rule')"
+              }
+            },
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.tolerance",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "ulp_tiered",
+            "gating": true,
+            "passed": true,
+            "detail": "worst dominant 64 ULP (fortran:advance_clubb_core_module) vs gate 32; worst max_rel 6.05e-15 (fortran:advance_clubb_core_module) vs 1e-12; waivers applied: fortran:advance_clubb_core_module<=64, fortran:pdf_closure_module<=64; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-multicol-jax.json",
+            "md5": "25e4408ef74734d0efca2eba37acfdcd",
+            "bytes": 14825
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-multicol-numpy",
+      "benchmark": "benchmarks/clubb-jax/cases-multicol-numpy.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:advance_clubb_core_module); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:advance_clubb_core_module); required at least bit_exact; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:advance_clubb_core_module); required at least symbolic; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-multicol-numpy.json",
+            "md5": "559ed09f4832816082172907bc6f0a1b",
+            "bytes": 18425
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-scalars-jax",
+      "benchmark": "benchmarks/clubb-jax/cases-scalars-jax.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "ulp_tiered",
+            "verifier": "differential.tolerance",
+            "dominant_at": 0.001,
+            "ulp_gate": 32,
+            "rel_gate": 1e-12,
+            "gating": true,
+            "note": "every dominant element (within 1e-3 of the largest in its row) within 32 ULP of the Fortran, every element within 1e-12 relative; verdicts taken with XLA's fused multiply-add and algebraic simplifier off",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.tolerance",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "ulp_tiered",
+            "gating": true,
+            "passed": true,
+            "detail": "worst dominant 32 ULP (fortran:advance_clubb_core_module) vs gate 32; worst max_rel 4.24e-15 (fortran:advance_clubb_core_module) vs 1e-12; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-scalars-jax.json",
+            "md5": "ef7abd633d85d8a2653dac05f2772c7b",
+            "bytes": 14161
+          }
+        ]
+      }
+    },
+    {
+      "id": "cases-scalars-numpy",
+      "benchmark": "benchmarks/clubb-jax/cases-scalars-numpy.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (it needs LES-derived inputs; no case reaches it)"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "stopped by dump-replay: the recording of this case holds no call of this unit (called from clubb_driver, outside the recorded step)"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "13 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:advance_clubb_core_module); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:advance_clubb_core_module); required at least bit_exact; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:advance_clubb_core_module); required at least symbolic; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "cases-scalars-numpy.json",
+            "md5": "12749e98513b9ddd39d30f5473c828b5",
+            "bytes": 18420
+          }
+        ]
+      }
+    },
+    {
+      "id": "port",
+      "benchmark": "benchmarks/clubb-jax/port.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module",
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:pdf_closure_module"
+            ],
+            "gating": true
+          },
+          {
+            "check": "ulp_tiered",
+            "verifier": "differential.tolerance",
+            "dominant_at": 0.001,
+            "ulp_gate": 32,
+            "rel_gate": 1e-12,
+            "gating": true,
+            "note": "every dominant element (within 1e-3 of the largest in its row) within 32 ULP of the Fortran, every element within 1e-12 relative; verdicts taken with XLA's fused multiply-add and algebraic simplifier off"
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.tolerance",
+            "gating": true
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "11 units, as the benchmark names them"
+          },
+          {
+            "check": "ulp_tiered",
+            "gating": true,
+            "passed": true,
+            "detail": "worst dominant 32 ULP (fortran:advance_clubb_core_module) vs gate 32; worst max_rel 3.19e-15 (fortran:advance_clubb_core_module) vs 1e-12"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "port.json",
+            "md5": "85da031653b025221498171b0442d69d",
+            "bytes": 13795
+          }
+        ]
+      }
+    },
+    {
+      "id": "tier0",
+      "benchmark": "benchmarks/clubb-jax/tier0.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:bicgstab_solvers",
+              "fortran:calc_roots",
+              "fortran:calendar",
+              "fortran:interpolation",
+              "fortran:ly93_pdf",
+              "fortran:mean_adv",
+              "fortran:nc_ncn_eqns",
+              "fortran:new_hybrid_pdf",
+              "fortran:new_pdf",
+              "fortran:new_tsdadg_pdf",
+              "fortran:penta_lu_solvers",
+              "fortran:skx_module",
+              "fortran:t_in_k_module",
+              "fortran:tridiag_lu_solvers"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's",
+            "ungated": {
+              "fortran:calc_roots": {
+                "reason": "judged and not bit-exact: 738 of 810 points bit-exact, the other 72 one ULP out, where gfortran's complex division and NumPy's round differently (README section 1, tier 0). Reported in the summary, not accepted at bit_exact"
+              },
+              "fortran:new_pdf": {
+                "reason": "two of its routines, calc_setter_var_params and calc_coefs_wpxpyp_semiimpl, have no drawable input: NaN on both sides on every draw, so the fail-closed gate records 'failed'. The complex-valued routine is bit-exact"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true,
+            "ungated": {
+              "fortran:calc_roots": {
+                "reason": "judged and not bit-exact: 738 of 810 points bit-exact, the other 72 one ULP out, where gfortran's complex division and NumPy's round differently (README section 1, tier 0). Reported in the summary, not accepted at bit_exact"
+              },
+              "fortran:new_pdf": {
+                "reason": "two of its routines, calc_setter_var_params and calc_coefs_wpxpyp_semiimpl, have no drawable input: NaN on both sides on every draw, so the fail-closed gate records 'failed'. The complex-valued routine is bit-exact"
+              }
+            }
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated",
+            "ungated": {
+              "fortran:calc_roots": {
+                "reason": "judged and not bit-exact: 738 of 810 points bit-exact, the other 72 one ULP out, where gfortran's complex division and NumPy's round differently (README section 1, tier 0). Reported in the summary, not accepted at bit_exact"
+              },
+              "fortran:new_pdf": {
+                "reason": "two of its routines, calc_setter_var_params and calc_coefs_wpxpyp_semiimpl, have no drawable input: NaN on both sides on every draw, so the fail-closed gate records 'failed'. The complex-valued routine is bit-exact"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "14 units, as the benchmark names them; stopped before the gate completed: fortran:calc_roots, fortran:new_pdf"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:bicgstab_solvers); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:bicgstab_solvers); required at least bit_exact; ungated: fortran:calc_roots, fortran:new_pdf"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:calc_roots, fortran:new_pdf"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:bicgstab_solvers); required at least symbolic; ungated: fortran:calc_roots, fortran:new_pdf"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "tier0.json",
+            "md5": "41cf286318537c4bc3f24d047571d2d0",
+            "bytes": 18213
+          }
+        ]
+      }
+    },
+    {
+      "id": "tier1",
+      "benchmark": "benchmarks/clubb-jax/tier1.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_helper_module",
+              "fortran:calc_pressure",
+              "fortran:diffusion",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:new_pdf_main",
+              "fortran:pdf_utilities",
+              "fortran:pos_definite_module",
+              "fortran:saturation",
+              "fortran:sigma_sqd_w_module",
+              "fortran:sponge_layer_damping",
+              "fortran:turbulent_adv_pdf"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "its public drivers derive the PDF shape parameters from the tunables and reach their error stop or leave the domain on generated inputs, so nothing was compared here; verified on recordings instead (tier2, cases-more)"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "its public drivers derive the PDF shape parameters from the tunables and reach their error stop or leave the domain on generated inputs, so nothing was compared here; no case reaches it (it needs LES-derived inputs), so it is not verified anywhere"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "initialize_tau_sponge_damp_api creates its intent(out) object and writes only the levels inside the sponge layer; the rest is undefined on both sides. Called from clubb_driver, outside CLUBB_core; not verified"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true,
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "its public drivers derive the PDF shape parameters from the tunables and reach their error stop or leave the domain on generated inputs, so nothing was compared here; verified on recordings instead (tier2, cases-more)"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "its public drivers derive the PDF shape parameters from the tunables and reach their error stop or leave the domain on generated inputs, so nothing was compared here; no case reaches it (it needs LES-derived inputs), so it is not verified anywhere"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "initialize_tau_sponge_damp_api creates its intent(out) object and writes only the levels inside the sponge layer; the rest is undefined on both sides. Called from clubb_driver, outside CLUBB_core; not verified"
+              }
+            }
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated",
+            "ungated": {
+              "fortran:new_hybrid_pdf_main": {
+                "reason": "its public drivers derive the PDF shape parameters from the tunables and reach their error stop or leave the domain on generated inputs, so nothing was compared here; verified on recordings instead (tier2, cases-more)"
+              },
+              "fortran:new_pdf_main": {
+                "reason": "its public drivers derive the PDF shape parameters from the tunables and reach their error stop or leave the domain on generated inputs, so nothing was compared here; no case reaches it (it needs LES-derived inputs), so it is not verified anywhere"
+              },
+              "fortran:sponge_layer_damping": {
+                "reason": "initialize_tau_sponge_damp_api creates its intent(out) object and writes only the levels inside the sponge layer; the rest is undefined on both sides. Called from clubb_driver, outside CLUBB_core; not verified"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "11 units, as the benchmark names them; stopped before the gate completed: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:advance_helper_module); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:advance_helper_module); required at least bit_exact; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:advance_helper_module); required at least symbolic; ungated: fortran:new_hybrid_pdf_main, fortran:new_pdf_main, fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "tier1.json",
+            "md5": "b10b6034544447ecad490b03b9f86010",
+            "bytes": 15999
+          }
+        ]
+      }
+    },
+    {
+      "id": "tier2",
+      "benchmark": "benchmarks/clubb-jax/tier2.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_windm_edsclrm_module",
+              "fortran:advance_wp2_wp3_module",
+              "fortran:advance_xm_wpxp_module",
+              "fortran:advance_xp2_xpyp_module",
+              "fortran:advance_xp3_module",
+              "fortran:clip_explicit",
+              "fortran:mixing_length",
+              "fortran:mono_flux_limiter",
+              "fortran:new_hybrid_pdf_main",
+              "fortran:pdf_closure_module",
+              "fortran:sponge_layer_damping"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's",
+            "ungated": {
+              "fortran:sponge_layer_damping": {
+                "reason": "initialize_tau_sponge_damp_api creates its intent(out) object and writes only the levels inside the sponge layer; the rest is undefined on both sides. Called from clubb_driver, outside CLUBB_core; not verified"
+              }
+            }
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true,
+            "ungated": {
+              "fortran:sponge_layer_damping": {
+                "reason": "initialize_tau_sponge_damp_api creates its intent(out) object and writes only the levels inside the sponge layer; the rest is undefined on both sides. Called from clubb_driver, outside CLUBB_core; not verified"
+              }
+            }
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated",
+            "ungated": {
+              "fortran:sponge_layer_damping": {
+                "reason": "initialize_tau_sponge_damp_api creates its intent(out) object and writes only the levels inside the sponge layer; the rest is undefined on both sides. Called from clubb_driver, outside CLUBB_core; not verified"
+              }
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "11 units, as the benchmark names them; stopped before the gate completed: fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:advance_windm_edsclrm_module); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:advance_windm_edsclrm_module); required at least bit_exact; ungated: fortran:sponge_layer_damping"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit; ungated: fortran:sponge_layer_damping"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:advance_windm_edsclrm_module); required at least symbolic; ungated: fortran:sponge_layer_damping"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "tier2.json",
+            "md5": "e03b1cbebf3f499fb06087fea5c855ce",
+            "bytes": 20755
+          }
+        ]
+      }
+    },
+    {
+      "id": "tier3",
+      "benchmark": "benchmarks/clubb-jax/tier3.yaml",
+      "acceptance": {
+        "kind": "unit-differential",
+        "summary_schema": 1,
+        "rules": [
+          {
+            "check": "unit_set_equal",
+            "units": [
+              "fortran:advance_clubb_core_module"
+            ],
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "static.rwset",
+            "level": "sampled",
+            "gating": true,
+            "note": "every translated block reads and writes what its Fortran block does; stub-only blocks are waived by name in the verdict"
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "differential.bitexact",
+            "level": "bit_exact",
+            "gating": true,
+            "note": "every floating-point value of every output identical to the Fortran's"
+          },
+          {
+            "check": "nan_mask_equal",
+            "verifier": "differential.bitexact",
+            "gating": true
+          },
+          {
+            "check": "confidence_at_least",
+            "verifier": "symbolic.notary",
+            "level": "symbolic",
+            "gating": false,
+            "note": "optional stage: no arithmetic reordered in translation; reported, not gated"
+          }
+        ]
+      },
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "check": "unit_set_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "1 units, as the benchmark names them"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest static.rwset is sampled (fortran:advance_clubb_core_module); required at least sampled"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": true,
+            "passed": true,
+            "detail": "weakest differential.bitexact is bit_exact (fortran:advance_clubb_core_module); required at least bit_exact"
+          },
+          {
+            "check": "nan_mask_equal",
+            "gating": true,
+            "passed": true,
+            "detail": "non-finite masks agree in every judged unit"
+          },
+          {
+            "check": "confidence_at_least",
+            "gating": false,
+            "passed": true,
+            "detail": "weakest symbolic.notary is symbolic (fortran:advance_clubb_core_module); required at least symbolic"
+          }
+        ]
+      },
+      "outputs": {
+        "location": "https://github.com/a85tract/clubb-jax/tree/99c8b22fab697d5fb5fb14b4bfaa6a2963fed78d/summaries",
+        "retention": "committed to the case repository; kept. The recordings the summaries replay (14 GB) are local data under the case's output/, not retained here",
+        "files": [
+          {
+            "name": "tier3.json",
+            "md5": "0214e1b2becf825b5893270eb803d758",
+            "bytes": 1386
+          }
+        ]
+      }
+    }
+  ],
+  "security": {
+    "gate": "hpc-devsecops",
+    "status": "NOT_RUN"
+  },
+  "result": "PASS",
+  "timestamp": "2026-09-21T19:44:00Z",
+  "operator": "Yueqi Chen",
+  "notes": "First acceptance record filed in CC-Test. The comparator is RecastEngine (recipes translate-clubb and port-clubb under recast-clubb); the measurements are the 15 summaries clubb-jax commits under summaries/, re-gated at engine e3c6717 on 2026-09-21 (clubb-jax PR #13, generated/MANIFEST.json collected 2026-09-21T19:44Z). Environment sources: python and platform from the engine's per-verdict records of that re-gate (output/evidence/, 404 records dated 2026-09-21); compiler and flags from the recordings' RECORDING.md headers and the f2py oracle's key; jax version from the case README. The Cyber gate has not been run against this commit, hence security NOT_RUN. Ungated units and waivers are those the benchmarks declare; see benchmarks/clubb-jax/README.md."
+}

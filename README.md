@@ -8,12 +8,12 @@ somebody else can check:
 - **Cyber** — has the code been scanned for secrets, known vulnerabilities, and defects?
 
 The two halves are independent tools that meet in one record. A reviewer should
-be able to open a single evidence package and see both verdicts for the same
+be able to open a single acceptance record and see both verdicts for the same
 commit, rather than trusting two separate green checkmarks.
 
 | Half | What it does | Status |
 |---|---|---|
-| [Correctness](#correctness--does-the-port-compute-the-right-answer) | Compares a candidate run against a reference run and files the result as evidence | **Tools in place.** Schema, comparators, manifest builder and verifier all implemented; no benchmark or evidence package filed yet |
+| [Correctness](#correctness--does-the-port-compute-the-right-answer) | Compares a candidate run against a reference run and files the result as evidence | **Tools in place.** Schema, comparators, manifest builder and verifier all implemented; benchmarks written for clubb-jax (15) and clm-ml-jax (2); first acceptance record filed (clubb-jax, 15 cases, PASS, security NOT_RUN), not yet verified by CI |
 | [Cyber](#cyber--the-hpc-devsecops-gate) | Secret scan, SBOM + CVE + VEX, AI code audit, AddressSanitizer | **In use.** Verified on Derecho |
 
 The Cyber half is also usable standalone against any git repository — it does
@@ -22,12 +22,13 @@ not depend on anything CESM-specific.
 ## Repository layout
 
 ```
-schemas/       what a validation evidence package is — JSON Schema + self-test
+schemas/       what an acceptance record is — JSON Schema + self-test
 correctness/   the four tools that produce and check one, plus their shared input adapter
-benchmarks/    per-product case definitions and acceptance criteria — empty so far
-evidence/      the append-only index of validated versions — empty so far
+benchmarks/    per-product case definitions and acceptance criteria — clubb-jax (15), clm-ml-jax (2)
+evidence/      acceptance records, one per validated version, append-only — one so far (clubb-jax)
 tests/         run.sh (Cyber, integration) and test_correctness.py (Correctness, pytest)
 docs/          VALIDATION-ARCHITECTURE.md — the plan, ownership, open decisions
+               CORRECTNESS-ORGANIZATION.md — which repository owns which part (D7, D8)
 
 tools/         the Cyber gate: devsecops-local.sh, asan.sh, install-hooks.sh, install-config.sh
 templates/     starter .gitleaks.toml / .vex/openvex.json / ai_audit.py for a target repo
@@ -58,7 +59,7 @@ Layer 1 — produce evidence          (HPC, offline, PBS or by hand)
 Layer 2 — verify evidence           (GitHub Actions, every PR, seconds)
   verify_evidence.py: does the manifest validate? does the commit it names
   exist? do the claimed results follow from the declared criteria? has an
-  existing package been altered?
+  existing record been altered?
 ```
 
 Layer 2 is everything CI can honestly check, and it is worth checking: it
@@ -87,7 +88,7 @@ string, so the rule carries `dump_format` and `dump_tool` rather than assuming
 them.
 
 Two more, for the cases that come up in practice: `evidence_class` marks a
-package as `complete` or `reconstructed`, so a historical run whose compiler
+record as `complete` or `reconstructed`, so a historical run whose compiler
 version can no longer be established is recorded honestly instead of having a
 plausible value invented for it; and the statistical criteria for Pipeline 2 are
 present but marked `provisional`, and the verifier rejects any evidence filed
@@ -97,26 +98,31 @@ against them until the tolerance, norm, variable set, and spread test are agreed
 ## Status and where to start
 
 The four tools under `correctness/` are implemented. What is still missing is
-data, not code: no benchmark file has been written and no evidence package has
-been filed.
+data and CI, not code: benchmarks exist for clubb-jax (15) and clm-ml-jax (2), and the
+first acceptance record is filed as `evidence/clubb-jax/unreleased-99c8b22f/` (15 cases,
+all PASS, security `NOT_RUN` because the Cyber gate has not run against that commit). CI
+does not verify it yet: `verify-evidence.yml` is migration step 6 of
+`docs/VALIDATION-ARCHITECTURE.md`. Next are that workflow and clubb-jax's `VALIDATION.md`
+(step 8 of `docs/CORRECTNESS-ORGANIZATION.md`).
 
 | Module | Step | State |
 |---|---|---|
 | `compare_runpair.py` | 2 | done — the PyCAM5 comparator with `--json`, neutral run-directory options, and the three-valued exit code |
 | `make_manifest.py` | 3 | done — comparator JSON + benchmark + environment probe + the Cyber gate's `summary.json` → a manifest |
 | `verify_evidence.py` | 3 | done — schema plus all 11 error invariants and 6 warnings from `schemas/README.md` |
+| `index_evidence.py` | 4 | done — regenerates `evidence/INDEX.md` from the manifests; `--check` exits 1 if it is stale |
 | `compare_stats.py` | 8 | written, and decision **D4 is still open**. It evaluates both rule kinds under the readings recorded in `docs/VALIDATION-ARCHITECTURE.md` §8.1; the schema keeps its `provisional` marker and the verifier still rejects statistical evidence |
-| benchmarks, first evidence package | 5, 4 | **not started** — this is what to do next |
+| benchmarks, first acceptance record | 5, 4 | **both done for clubb-jax.** clubb-jax has 15 benchmarks, all PASS in the acceptance record filed 2026-09-24 (`verify_evidence.py`: 0 errors, 1 warning for `NOT_RUN`); clm-ml-jax has 2, blocked until the case commits the engine's schema-1 summary (`benchmarks/clm-ml-jax/README.md`). CI does not verify the record yet (step 6) |
 
 Each tool exits `0` PASS, `1` FAIL, `2` ERROR, and `2` genuinely means *nothing
 was compared*: a missing file, a mismatched file set, an unreadable format, an
 acceptance rule with no measurement behind it. That distinction is the point —
 a stub that returned an empty result, or a tool that reported an absent
-comparison as a clean one, would let a caller file a *passing* evidence package
+comparison as a clean one, would let a caller file a *passing* acceptance record
 for a comparison that never ran, which is the failure mode the explicit gating
 flags and `ERROR` status exist to prevent.
 
-Read `correctness/README.md` for how the four compose, what they depend on, and
+Read `correctness/README.md` for how the five compose, what they depend on, and
 the conventions they share, then `docs/VALIDATION-ARCHITECTURE.md` for the
 migration order, the open decisions, and who owns what. Both test suites are
 runnable, and neither needs a NetCDF stack:
@@ -338,15 +344,22 @@ under `--block` / `--require-complete`, or a usage/environment error.
 `docs/VALIDATION-ARCHITECTURE.md` §8 tracks the open decisions. One still needs a
 person, not more code:
 
-- **D4** — the Pipeline 2 statistical acceptance vocabulary. `compare_stats.py`
-  is written, but it did not settle D4: it states the reading it takes for each
+- **D4** — the Pipeline 2 acceptance vocabulary. The ULP family is settled
+  (2026-09-24) as the `unit-differential` kind, read from a RecastEngine
+  summary. The ensemble-spread family is not: `compare_stats.py` is written, but
+  it did not settle it: it states the reading it takes for each
   undecided point (`docs/VALIDATION-ARCHITECTURE.md` §8.1) and those readings
   need confirming or overturning by a person. Until then the schema keeps its
   `provisional` marker and no Pipeline 2 evidence is accepted. The bitwise path
   is unaffected.
 
-**D6** — whether an evidence package also records the Cyber gate's verdict for the
+**D6** — whether an acceptance record also carries the Cyber gate's verdict for the
 same commit — is **resolved: yes.** The manifest carries a required `security`
 block; when the gate has not run for that commit its `status` is `NOT_RUN`, so a
-package is never silently missing the Cyber half rather than honestly marking it
+record is never silently missing the Cyber half rather than honestly marking it
 absent. See `docs/VALIDATION-ARCHITECTURE.md` §11.
+
+**D7** and **D8** — where the whole-model comparator lives, and what CC-Test is —
+were settled on 2026-09-24: the comparators move to the engine as `fullmodel.bitwise`,
+and CC-Test narrows to its acceptance records and the criteria. `correctness/` is
+transitional until migration step 5 of `docs/CORRECTNESS-ORGANIZATION.md` lands.

@@ -1,7 +1,7 @@
 # Correctness half
 
-Four tools turn a pair of model runs into an evidence package that
-`schemas/evidence-manifest.v1.json` accepts.
+Four tools turn a pair of model runs into an acceptance record that
+`schemas/evidence-manifest.v1.json` accepts; a fifth indexes the acceptance records filed.
 
 ```
 reference run ─┐
@@ -12,15 +12,15 @@ reference run ─┐                              │                       mani
                ├─► compare_stats.py --json  ──┘                        summary.md
 candidate run ─┘   (statistical, Pipeline 2)                           report.txt
                                                                             │
-                                                                            ▼
-                                                              verify_evidence.py  (CI)
+                                                                            ├─► verify_evidence.py  (CI)
+                                                                            └─► index_evidence.py ─► evidence/INDEX.md
 ```
 
 The comparators run on HPC where the output lives. `verify_evidence.py` runs in CI, on the
 committed manifest, in seconds. Nothing in this directory ever executes a model run — see
 `../docs/VALIDATION-ARCHITECTURE.md` §4 for why that split exists.
 
-`dataio.py` is the fifth file and is not a tool: it is the input adapter both comparators
+`dataio.py` is the sixth file and is not a tool: it is the input adapter both comparators
 share, and the one place that decides how a file is read and dumped.
 
 ## Status
@@ -30,13 +30,19 @@ share, and the one place that decides how a file is read and dumped.
 | `compare_runpair.py` | 2 | **implemented** |
 | `make_manifest.py` | 3 | **implemented** |
 | `verify_evidence.py` | 3 | **implemented** — all 11 error invariants and 6 warnings from `../schemas/README.md` |
+| `index_evidence.py` | 4 | **implemented** — regenerates `../evidence/INDEX.md` from the manifests; `--check` exits 1 if it is stale |
 | `compare_stats.py` | 8 | **implemented, but decision D4 is still open.** It evaluates the rule kinds the schema names, under the readings recorded in `../docs/VALIDATION-ARCHITECTURE.md` §8.1. The schema keeps its `provisional` marker and `verify_evidence.py` still rejects statistical evidence |
 
-Still to do here: migration step 5 (write the `benchmarks/<product>/*.yaml` files) and
-step 4 (the first evidence package). Until benchmarks exist there is nothing for
-`make_manifest.py` to read acceptance criteria from — which is why
-`schemas/examples/example-bitwise.manifest.json` is reported by the verifier as naming
-benchmarks that do not exist.
+Benchmarks exist under `../benchmarks/clubb-jax/` (15, all evaluating PASS) and
+`../benchmarks/clm-ml-jax/` (2, not evaluable until the case commits the engine's schema-1
+summary). The first acceptance record, step 4 of `../docs/CORRECTNESS-ORGANIZATION.md`, is
+filed as `../evidence/clubb-jax/unreleased-99c8b22f/` (15 cases, PASS, security `NOT_RUN`;
+`verify_evidence.py` reports 0 errors and 1 warning). Its `cc_test.commit` (`86a46e8c`) is the
+commit that holds the tooling and benchmarks that produced it; see `../evidence/README.md`.
+Still to do: the `verify-evidence.yml` workflow, so CI checks it.
+The format examples under `schemas/examples/` name
+benchmarks that do not exist, on purpose, which is why the verifier reports
+`example-bitwise.manifest.json` as naming a missing benchmark.
 
 ## Running them
 
@@ -65,6 +71,21 @@ correctness/verify_evidence.py                       # every manifest under evid
 correctness/verify_evidence.py --base-ref origin/main --strict
 ```
 
+For a `unit-differential` case the comparator is RecastEngine, and the "comparator JSON" is the
+summary the case repository commits. `make_manifest.py` reads its verdicts, decides which gate
+by the benchmark, and fingerprints the summary file into `outputs.files`:
+
+```bash
+correctness/make_manifest.py \
+    --case tier0-translate=~/agent/cesm/clubb-jax/summaries/tier0.json \
+    --benchmark-dir benchmarks/clubb-jax \
+    --artifact-repo ~/agent/cesm/clubb-jax \
+    --outputs-location https://github.com/a85tract/clubb-jax/tree/main/summaries \
+    --outputs-retention "committed; kept" \
+    --machine laptop --env compiler="gfortran 16.1.0 (Homebrew)" \
+    --out evidence/clubb-jax/unreleased-<commit>/manifest.json
+```
+
 `compare_stats.py` additionally needs the criteria, because a statistical comparison has no
 criterion of its own:
 
@@ -72,8 +93,11 @@ criterion of its own:
 correctness/compare_stats.py \
     --reference member0/ --reference member1/ --reference member2/ \
     --candidate candidate/ \
-    --acceptance benchmarks/jax-kernels/hs94-ne16.yaml --json hs94.json
+    --acceptance benchmarks/<product>/<case>.yaml --json hs94.json
 ```
+
+No statistical benchmark has been written yet; that family of the acceptance schema is
+still `provisional` (decision D4).
 
 ## Dependencies
 
@@ -136,4 +160,4 @@ the whole comparison and names it in its output:
 - **The benchmark owns the criteria.** A comparator reports what it measured;
   `benchmarks/<product>/<case>.yaml` decides which of those measurements gate, and
   `make_manifest.py` copies that block into the manifest verbatim. Changing a criterion
-  means editing a benchmark, never editing an evidence package.
+  means editing a benchmark, never editing an acceptance record.

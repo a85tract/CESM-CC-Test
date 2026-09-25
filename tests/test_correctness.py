@@ -1222,3 +1222,15 @@ def test_index_is_generated_from_the_manifests_and_check_detects_staleness(works
 
     (workspace["cc_test"] / "evidence" / "INDEX.md").write_text(index + "| edited by hand |\n")
     assert index_evidence.main(["--check"]) == 1
+
+
+def test_the_filed_clubb_jax_package_verifies_and_is_indexed(capsys):
+    """The first real acceptance record: it must verify clean and INDEX.md must be current."""
+    import index_evidence
+    record = ROOT / "evidence" / "clubb-jax" / "unreleased-99c8b22f" / "manifest.json"
+    assert record.is_file()
+
+    assert verify_evidence.main([str(record)]) == 0
+    out = capsys.readouterr().out
+    assert "ERROR" not in out
+    assert index_evidence.main(["--check"]) == 0

@@ -4,6 +4,7 @@
 **Date**: 2026-08-10
 **Scope**: this repository (`CESM-CC-Test`) plus a two-file addition to each product repository.
 **Supersedes**: `docs/CORRECTNESS-REFACTOR.md` (earlier draft, same architecture).
+**Narrowed by**: `docs/CORRECTNESS-ORGANIZATION.md` (2026-09-24) — decisions D7 and D8 move the comparators to the engine and reduce CC-Test to its acceptance records and the criteria; §5's `correctness/` directory is transitional.
 
 ---
 
@@ -22,7 +23,7 @@ No separate results repository is created.
 | Benchmarks, reference output, acceptance criteria | CC-Test, one directory per product |
 | CI configuration that calls CC-Test | Each product repository |
 | Short validation summary for the current version | `VALIDATION.md` in each product repository |
-| Full evidence package per release | CC-Test `evidence/` index; product release links to it |
+| Full acceptance record per release | CC-Test `evidence/` index; product release links to it |
 | Large outputs, logs, data | Release assets or long-term storage — never committed to Git |
 
 This satisfies two audiences at once:
@@ -90,7 +91,7 @@ Layer 2 — verify evidence    (GitHub Actions, every PR, seconds)
                    product repo; acceptance rules and result are self-consistent;
                    no duplicate version directory
   In the product:  the commit declared in VALIDATION.md is HEAD, or the drift is
-                   declared; the linked evidence package exists and reads PASS
+                   declared; the linked acceptance record exists and reads PASS
 ```
 
 Layer 2 is everything that can genuinely run in CI, and it is worth running: it catches
@@ -107,7 +108,7 @@ into Git. Correct, with one bound made explicit: a GitHub release asset is cappe
 | Tier | Content | Location | Scale |
 |---|---|---|---|
 | 0 | `manifest.json`, `summary.md`, `report.txt` | Committed to CC-Test `evidence/` | KB |
-| 1 | Comparison plots, per-variable diff tables, run logs, PBS logs, timing dumps | GitHub Release assets on the CC-Test release for that evidence package | MB — under 2 GiB per file |
+| 1 | Comparison plots, per-variable diff tables, run logs, PBS logs, timing dumps | GitHub Release assets on the CC-Test release for that acceptance record | MB — under 2 GiB per file |
 | 2 | NetCDF history/restart files, ensemble member output | HPC storage (`/glade` scratch or campaign); never uploaded | GB — TB |
 
 Tier 2 data is recorded in the manifest by `location`, `retention` (including the expected
@@ -128,7 +129,7 @@ Current behaviour of `compare_cesm_runpair.py`:
 Today's de facto criterion is therefore "numeric BFB only". That is defensible — char
 variables often carry timestamps, and timing should not gate correctness — but it must be
 written into the manifest's `acceptance` block with an explicit `gating` flag per rule.
-Otherwise the PASS an evidence package claims has no defined meaning.
+Otherwise the PASS an acceptance record claims has no defined meaning.
 
 ---
 
@@ -179,7 +180,7 @@ CESM-CC-Test/
 │   ├── pyphys-bridge/
 │   └── pyccpp/                     # placeholder
 │
-├── evidence/                       # the index — manifests and summaries only
+├── evidence/                       # acceptance records — manifests and summaries only
 │   ├── INDEX.md                    # generated cross-product table
 │   ├── pycam5/
 │   │   └── v0.2.0/
@@ -206,7 +207,7 @@ Two notes on the layout:
 
 ---
 
-## 6. Evidence manifest
+## 6. The manifest
 
 The binding contract from the sketch is the required core. The v1 schema is a strict
 superset of it — every field in the minimal contract survives, at a defined path:
@@ -237,7 +238,7 @@ the two drift, this section records only why it expands the minimal contract:
 | `status` includes `ERROR`, not just PASS/FAIL | A file-set mismatch means nothing was compared; the comparator already exits 2 for it |
 | `numeric_md5_equal` records `dump_format` and `dump_tool` | The digest is only comparable across manifests that used the same dump format |
 | `evidence_class: complete \| reconstructed` | Backfilled history cannot always name the compiler or reference revision; better to mark it than to invent it |
-| `security` block, required, with a state beside every count | Makes each evidence package a joint claim — this code computes the right answer *and* it was scanned. A missing block would be indistinguishable from a clean scan, so absence is not permitted; `NOT_RUN` is |
+| `security` block, required, with a state beside every count | Makes each acceptance record a joint claim — this code computes the right answer *and* it was scanned. A missing block would be indistinguishable from a clean scan, so absence is not permitted; `NOT_RUN` is |
 | `outputs.retention`, `outputs.assets_release`, per-file md5 | Directly resolves adjustment B; ties tier 1 and tier 2 to the manifest |
 | `environment` becomes structured | A single free-text string cannot be diffed between runs |
 
@@ -301,8 +302,10 @@ The sketch settles three of the five decisions carried over from the earlier dra
 | D1 | Repository identity: CC-Test (CAM validation hub) vs `hpc-devsecops` (generic tool) | **Settled by the sketch** — CC-Test is the central validation infrastructure. `README.md` is rewritten around two halves; the Cyber half is annotated "generic, usable standalone", keeping the current install instructions valid. |
 | D2 | Version source for `evidence/<product>/<version>/` — all three repos have zero tags | **Settled in principle** — the sketch's `v0.2.0` layout means version directories are release tags, so products start tagging. Proposed bridge until a product cuts its first tag: `unreleased-<commit[:8]>`, with `artifact.commit` always authoritative. |
 | D3 | How evidence reaches CC-Test from the HPC side | **Settled** — manual pull request. Derecho compute nodes generally have no outbound network, so automated push is not available. |
-| D4 | Pipeline 2 statistical criteria | **Still open — needs your input.** "1.24e-6 rel diff" and "within ensemble spread" must become executable: tolerance value and norm, the compared variable set, ensemble member count, and the spread test. `compare_stats.py` now exists and evaluates the two rule kinds the schema names, but it did **not** settle D4: it states the reading it uses for each undecided point (§8.1), the schema keeps its `provisional` marker, and `verify_evidence.py` still rejects any manifest that files evidence against it. |
-| D5 | Cyber-half config gap: no product repo had `.gitleaks.toml`, `.vex/openvex.json`, or `ai_audit.py`, so those checks skipped silently | **Settled — in scope, and the CC-Test side is done.** `ai_audit.py` did not exist anywhere, so it was written rather than merely installed. Templates for all three now live in `templates/`, `tools/install-config.sh` installs them into a target repo, and the evidence manifest records the Cyber verdict (§6). Installing into the six product repos is step 10. |
+| D4 | Pipeline 2 statistical criteria | **Settled for the ULP family on 2026-09-24** as the `unit-differential` acceptance kind (`CORRECTNESS-ORGANIZATION.md` §3.3), transcribed from what `recast.verify.tolerance` enforces. **The ensemble-spread family is still open.** "1.24e-6 rel diff" and "within ensemble spread" must become executable: tolerance value and norm, the compared variable set, ensemble member count, and the spread test. `compare_stats.py` now exists and evaluates the two rule kinds the schema names, but it did **not** settle D4: it states the reading it uses for each undecided point (§8.1), the schema keeps its `provisional` marker, and `verify_evidence.py` still rejects any manifest that files evidence against it. |
+| D5 | Cyber-half config gap: no product repo had `.gitleaks.toml`, `.vex/openvex.json`, or `ai_audit.py`, so those checks skipped silently | **Settled — in scope, and the CC-Test side is done.** `ai_audit.py` did not exist anywhere, so it was written rather than merely installed. Templates for all three now live in `templates/`, `tools/install-config.sh` installs them into a target repo, and every acceptance record's manifest records the Cyber verdict (§6). Installing into the six product repos is step 10. |
+| D7 | Where the whole-model comparator lives | **Settled 2026-09-24** — the engine, as the `fullmodel.bitwise` verifier its `refactor-todo` recipe already names; the CAM NetCDF reader is injected from `recast-cesm`. See `CORRECTNESS-ORGANIZATION.md` §3.1. |
+| D8 | What CC-Test is | **Settled 2026-09-24** — its acceptance records and the criteria, nothing else; it runs no comparison, and the Cyber tooling's ownership moves to the engine's `recast.scan`. Supersedes D1's reading. See `CORRECTNESS-ORGANIZATION.md` §3.1. |
 
 ### 8.1 D4 readings decided by implementation on 2026-09-03, revisit if wrong
 
@@ -339,9 +342,9 @@ Ordered so each step is independently reviewable.
 | 1 | **DONE** — `evidence-manifest.v1.json` and `acceptance.v1.json`, bitwise vocabulary complete, statistical present but provisional and rejected by the verifier. Plus `schemas/README.md`, a format example, and `schemas/test_schemas.py` (3 positive + 12 negative assertions, all passing) | CC-Test `schemas/` | D2 |
 | 2 | **DONE** — `correctness/compare_runpair.py` carries the PyCAM5 comparator with `--json`, neutral `--reference-run-dir` / `--candidate-run-dir` (old names kept as hidden aliases), and the three-valued exit code. Removing the copy from PyCAM5 is still to do | CC-Test | 1 |
 | 3 | **DONE** — `make_manifest.py` (comparator JSON + benchmark + environment probe + the Cyber gate's `summary.json` → manifest) and `verify_evidence.py` (schema + all 11 error invariants and 6 warnings from `schemas/README.md`). `tests/test_correctness.py` covers pass / findings / incomplete for each tool and the make_manifest → verify_evidence round trip | CC-Test | 1, 2 |
-| 4 | Backfill the 2026-06-16 PI/MCO results from `PyCAM5/doc/internal_validation.md` as the first evidence package | CC-Test `evidence/pycam5/` | 3 |
+| 4 | Backfill the 2026-06-16 PI/MCO results from `PyCAM5/doc/internal_validation.md` as an acceptance record. Still to do. It is no longer the first: that was clubb-jax, filed 2026-09-24 as `evidence/clubb-jax/unreleased-99c8b22f/` (`CORRECTNESS-ORGANIZATION.md` step 4) | CC-Test `evidence/pycam5/` | 3 |
 | 5 | Write `benchmarks/pycam5/{pi,mco}-6month-allcodon.yaml`, extracting case definitions from `env_allcodon_675.sh` | CC-Test | 4 |
-| 6 | Write `verify-evidence.yml` and `validation-callable.yml` | CC-Test `.github/` | 3 |
+| 6 | Write `verify-evidence.yml` and `validation-callable.yml`. An acceptance record now exists (`evidence/clubb-jax/unreleased-99c8b22f/`), so the workflow has something to check; until it lands, `ci.yml` runs only the shell tests and CI does not verify that record | CC-Test `.github/` | 3 |
 | 7 | Add `VALIDATION.md` + `validation.yml` to PyCAM5 | PyCAM5 | 6 |
 | 8 | **Half done** — `compare_stats.py` is written and evaluates both rule kinds, under the readings recorded in §8.1. Still needed: agreement on D4 (which turns those readings from a written default into the criterion), removing the schema's `provisional` marker, and extending to `jax-kernels` / `numba-kernels` / `pyphys-bridge` | CC-Test + product repos | 7, D4 |
 | 9 | Extend to `freeCAM` (bitwise; the CAM-SIMA oracle gate becomes a benchmark case) | CC-Test + freeCAM | 7 |
@@ -352,7 +355,8 @@ Step 2 should **move** rather than copy: PyCAM5 keeps a thin wrapper or simply a
 its docs. Two comparators that can drift apart is precisely the problem the Cyber half's
 "reuse the target repo's own config" rule was designed to avoid.
 
-Step 4 is the make-or-break step. If the environment details of the 2026-06-16 run
+Step 4 is the make-or-break step for the PyCAM5 backfill (the clubb-jax record filed first
+had its environment recorded, so the question does not arise there). If the environment details of the 2026-06-16 run
 (compiler version, reference commit, output paths) can no longer be recovered, that
 manifest must be marked `"provenance": "reconstructed, incomplete"` and treated as a
 format example rather than a compliance example. **This needs your confirmation that the
@@ -401,9 +405,9 @@ run, and writes a machine-readable `summary.json` beside `summary.txt` for
 `--block` keeps its original meaning, so the pre-push hook's behaviour is unchanged unless
 a repository opts in.
 
-**The manifest records the Cyber verdict.** `security` is a required block on every
-evidence manifest, with a required state beside every count and an explicit `NOT_RUN`
-status. An evidence package therefore always states whether the validated code was
+**The manifest records the Cyber verdict.** `security` is a required block in every
+manifest, with a required state beside every count and an explicit `NOT_RUN`
+status. An acceptance record therefore always states whether the validated code was
 scanned; silence is not an available answer. This is what makes CC-Test one assurance
 system rather than two tools sharing a repository — a reviewer reads a single manifest and
 sees both that the code computes the right answer and that it was scanned for

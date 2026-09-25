@@ -1,0 +1,201 @@
+# Where the Correctness work lives
+
+**Status**: decided 2026-09-24 on the two open points (D7, D8 below); migration steps 1-4 done the same day.
+**Date**: 2026-09-24
+**Scope**: every repository that holds a piece of the numerical-correctness story of the
+SciRecast modernization effort. `VALIDATION-ARCHITECTURE.md` describes the acceptance
+record and the HPC/CI split and still stands; this document decides which repository
+owns which part, and narrows what CC-Test is.
+
+---
+
+## 1. What was measured
+
+Surveyed on 2026-09-24, local checkouts under `~/agent/`:
+
+| Repository | What it is | Correctness content |
+|---|---|---|
+| `RecastEngine-Pro` | the engine (973 commits) | all comparison mechanisms: `src/recast/verify/` (bitexact, tolerance, ulp, notary, rwset, conditioning, finite_derivative, forward_workload, python_accelerators, probes), `src/recast/oracle/` (f2py-golden, dump-replay, numpy-anchor, record), the `Confidence` ladder and `Evidence.to_manifest()` in `model.py`, `conformance/`, `corpus/baseline.json` |
+| `RecastEngine` | the public edition | same shape, tier-marked; no separate correctness content |
+| `RecastEngine-clubb`, `RecastEngine-elm` | **not repositories** — two working copies of `RecastEngine-Pro` (same remote, different HEADs) used by the CLUBB and ELM cases to re-gate | none of their own |
+| `RecastEngine-Pro-Lean` | a Lean 4 audit of the Fortran→NumPy translation path, pinned at Pro `8ff23c5` | 184 rules, 113 with obligations, 65 proved / 24 conditional / 31 refuted; 20 hand-driven probes; `rules.json`, `defects.json` |
+| `recast-cesm`, `recast-clm-ml`, `recast-clubb`, `recast-elm` | domain extensions, plugins of the engine | no comparator of their own. Input domains, stubs, kinds, oracle variants, `UNGATED` tables, per-model default gates in `recipe.py`. `recast-cesm` also carries 56 promoted CAM scripts (checksum diffs, climate diagnostics, ensemble drift). `recast-elm` additionally carries the ELM *case* (`case/`, 16 GB `output/`) |
+| `cesm/clubb-jax`, `cesm/clm-ml-jax` | cases: pinned upstream, recordings, generated code, verdict summaries | their own copies of L2 tooling: `tools/closed_loop.py`, `tools/run_step.py` (its own `ulp_distance`), `tools/check_derivatives.py`; `column.py`, `month_jax.py`, `gradients.py`, `compare_authors*.py` (its own ULP via `np.spacing`) |
+| `cesm/PyCAM5`, `cesm/freeCAM` | products (whole-model) | `scripts/validation/compare_cesm_runpair.py` (the copy step 2 was meant to remove); `src/freecam/pi_cam/validation.py` (a second directory-level BFB comparator); `test/recast/` module gates; `validation/*.json` records |
+| `CC-Test` | this repository | `schemas/`, `correctness/` (two comparators, `make_manifest.py`, `verify_evidence.py`, `dataio.py`), empty `benchmarks/` and `evidence/` |
+
+Five distinct *claims* are being made, and today they are spread across four kinds of repository:
+
+| Level | The claim | Where the mechanism is | Where the result is |
+|---|---|---|---|
+| L0 translator soundness | the engine's rewrite rules are sound | `RecastEngine-Pro-Lean` | `rules.json`, `defects.json`, `RESULTS.md` |
+| L1 unit differential | one translated unit matches the f2py-compiled or recorded original, bit-exact or within a ULP bound | engine `verify/` + `oracle/`; extensions supply domains and stubs | one `recast.evidence.v1` record per verdict in each case's `output/evidence/` (8,498 on this machine, none committed); committed `verification.json` / `summaries/tier*.json` |
+| L2 composed | closed-loop trajectory, 31-day column, gradient consistency | **each case, separately**; the engine's `forward_workload` and `finite_derivative` are generic versions nobody calls | CSV/log/PNG under each case's `evidence/` or `output/` |
+| L3 whole model | a CESM run pair is bit-for-bit, or statistically within a bound | **three comparators**: CC-Test `compare_runpair.py`, PyCAM5 `compare_cesm_runpair.py`, freeCAM `pi_cam/validation.py`; CC-Test `compare_stats.py` | `/glade` paths in `PyCAM5/doc/internal_validation.md`; `freeCAM/validation/*.json` |
+| record | that any of the above ran, and what it concluded | CC-Test `evidence-manifest.v1` + `verify_evidence.py`; engine `Evidence.to_manifest()` + `conformance/manifest.py`; per-product ad hoc JSON | nothing filed in `evidence/` yet |
+
+## 2. The defects in the current arrangement
+
+Ordered by cost.
+
+**One name, two formats.** `RecastEngine-Pro/AGENTS.md` and `model.py` say "CC-Test owns
+`evidence-manifest.v1.json`; `Evidence.to_manifest()` is the only place the two vocabularies
+meet." A per-verdict record the engine wrote for `recast-elm`, labelled a CC-Test manifest at the time, (`output/evidence/fortran_soiltemperaturemod/5c958f…json`)
+fails this repository's schema with 19 errors: `security` missing, `cases` empty, `result` an
+object rather than `PASS|FAIL|ERROR`, `cc_test.commit` the literal `unknown`, `artifact` and
+`environment` missing required keys. The engine's own `conformance/manifest.py` encodes a
+*different* reading of v1 and passes the same document. This is the retrospective's lesson 4,
+"one fact in two places", in the one place both sides agreed it must not happen.
+
+**D4 was settled in code, in the wrong repository.** `schemas/acceptance.v1.json` still marks
+statistical criteria `provisional` and `verify_evidence.py` rejects them. Meanwhile every JAX
+product is gated by `RecastEngine-Pro/src/recast/verify/tolerance.py`: dominant elements
+(within 1e-3 of the row maximum) within **32 ULP**, every element within **rel 1e-12**, with
+per-unit waivers to 128 and 192 ULP justified by `conditioning.py`, and verdicts taken under
+`XLA_FLAGS=--xla_backend_optimization_level=0 --xla_disable_hlo_passes=algsimp`. That *is*
+the Pipeline 2 criterion in use, and the acceptance vocabulary here cannot express it.
+
+**L2 and L3 are reimplemented per repository.** ULP distance exists three times (engine
+`verify/ulp.py`, clubb-jax `tools/run_step.py`, clm-ml-jax via `np.spacing`). Closed-loop
+comparison exists three times (clubb-jax, clm-ml-jax, recast-elm `case/closed_loop.py`)
+beside the engine's unused `forward_workload`. Directory-level BFB exists three times.
+
+**Recordings have no storage policy.** clubb-jax keeps 22 GB gitignored; clm-ml-jax commits
+~800 MB of recordings and publishes 5.3 GB as a release asset; recast-elm holds 16 GB in a
+plugin repository's `output/`. `VALIDATION-ARCHITECTURE.md` §4-B defines tiers 0/1/2 for
+CESM output only.
+
+**Cases have no CI and no `VALIDATION.md`.** The engine commit each result set was taken at
+is written by hand in READMEs; nothing checks it.
+
+**CC-Test's product list is fiction.** `benchmarks/{jax-kernels,numba-kernels,pyphys-bridge,pyccpp}/`
+name repositories that do not exist. The real products are `clubb-jax`, `clm-ml-jax`, the ELM
+case, `PyCAM5`, `freeCAM`.
+
+**Two documents disagree about what CC-Test is.** This repository's README calls itself the
+hub of two halves; `RecastEngine-Pro/docs/architecture.md` lists CC-Test as "the cyber half"
+and has absorbed its gate as `recast.scan` and the `audit` recipe.
+
+## 3. The ownership rule
+
+One sentence, continuing the one already at the top of `recast/scan/__init__.py`:
+
+> **The comparison algorithm belongs to the engine. Knowledge of the model, and that model's
+> default gate, belong to its extension. A particular recording, pinned upstream, and current
+> verdict summary belong to the case. What was judged about a released version, and the
+> criterion it was judged by, belong to CC-Test.**
+
+The test for each placement is the retrospective's: the engine must translate and gate the
+corpus with no extension installed; an extension must need no engine patch; a case must run
+with the engine and its extension installed and nothing else.
+
+### 3.1 Decisions
+
+| # | Decision | Status |
+|---|---|---|
+| D7 | Where the whole-model comparator lives | **Settled 2026-09-24: the engine.** `correctness/compare_runpair.py` and `dataio.py` become the `fullmodel.bitwise` Verifier that the engine's `refactor-todo` recipe already names and nobody registered. The engine forbids `netCDF4` in `recast.*`, so the reader that knows CAM history files — the `*.cam.{h0,r,rh0,rs}.*.nc` patterns, the `%+.17g` ncks dump — is injected from `recast-cesm`, which already describes itself as owning "dump formats". `compare_stats.py` follows the same path once D4 is written down. PyCAM5's copy is deleted; freeCAM's `compare_pi_cam_directories` calls the same verifier. |
+| D8 | What CC-Test is | **Settled 2026-09-24: its acceptance records and the criteria, nothing else.** CC-Test keeps `schemas/`, `benchmarks/`, `evidence/`, `make_manifest.py`, `verify_evidence.py`, and the architecture documents. It runs no comparison. The Cyber gate's tooling under `tools/`, `templates/`, `hooks/`, `hpc/` is owned going forward by the engine's `recast.scan` and `audit` recipe; what CC-Test keeps of it is the `security` block in the manifest, which records the verdict. README D1 is superseded by this. |
+
+### 3.2 Per repository
+
+| Repository | Keeps | Receives | Gives up |
+|---|---|---|---|
+| `RecastEngine-Pro` | every comparison mechanism, the `Confidence` ladder, the `Evidence` producer, recipes | `fullmodel.bitwise` (from CC-Test `compare_runpair.py` + `dataio.py`); the generic parts of clubb-jax `closed_loop.py`/`run_step.py`, clm-ml-jax `column.py`/`gradients.py`, recast-elm `case/gradients.py`, folded into `forward_workload` and `finite_derivative`; a `port` recipe base for the three near-identical `*PortRecipe` stage lists | its private reading of v1 in `conformance/manifest.py`, replaced by an identity test against this repository's schema |
+| `recast-cesm` / `-clm-ml` / `-clubb` / `-elm` | domains, stubs, kinds, oracle variants, `UNGATED` tables, the model's *default* gate values | the CAM NetCDF reader for `fullmodel.bitwise` (recast-cesm) | recast-elm's `case/` and 16 GB `output/` — they become an `elm-jax` case repository shaped like the other two |
+| cases: `clubb-jax`, `clm-ml-jax`, `elm-jax`, `PyCAM5`, `freeCAM` | pinned upstream, recordings with `RECORDING.md` provenance, `configs/`, committed `verification.json` (current state, diffable), `VALIDATION.md`, a `validation.yml` that checks the declared commit against HEAD | nothing | every comparison script; PyCAM5 `compare_cesm_runpair.py`; freeCAM's comparator body |
+| `CC-Test` | `schemas/`, `benchmarks/` (the only place a criterion is written), `evidence/`, `make_manifest.py`, `verify_evidence.py`, docs | Lean audit results registered as evidence (product `recastengine-pro`, version = the pinned engine commit) | `compare_runpair.py`, `compare_stats.py`, `dataio.py`; ownership of the Cyber tooling |
+| `RecastEngine-Pro-Lean` | itself, unchanged; it audits the engine, not a product | | its 31 refuted rules become engine issues |
+| `RecastEngine-clubb`, `RecastEngine-elm` | nothing — retired. Cases already pin the engine per unit in `generated/MANIFEST.json`; install with `pip install 'recast-engine @ git+…@<sha>'` | | |
+
+### 3.3 Criteria written once
+
+The benchmark file is the only place a criterion is written. The extension's `recipe.py`
+carries the same value as the run's default, and `make_manifest.py` checks that the gate the
+manifest records equals the benchmark's — equality is asserted by a test, not assumed from a
+copy. The acceptance vocabulary gains what L1 needs:
+
+```yaml
+acceptance:
+  kind: unit-differential          # beside bitwise and statistical
+  summary_schema: 1                # the `schema` of the engine's verification.json
+  rules:
+    - check: unit_set_equal        # always gating: the units the case must cover
+      units: ["fortran:advance_clubb_core_module", "fortran:pdf_closure_module"]
+      gating: true
+    - check: confidence_at_least   # the engine's Confidence ladder
+      verifier: differential.bitexact
+      level: bit_exact
+      gating: true
+    - check: ulp_tiered            # decision D4, as recast.verify.tolerance enforces it
+      verifier: differential.tolerance
+      dominant_at: 1.0e-3
+      ulp_gate: 32
+      rel_gate: 1.0e-12
+      waivers:
+        "fortran:pdf_closure_module": {ulp_gate: 192, reason: "measured conditioning, see ..."}
+      gating: true
+    - check: nan_mask_equal
+      verifier: differential.tolerance
+      gating: true
+```
+
+The XLA flags a verdict was taken under are a property of the run, not of the criterion;
+they are recorded in the manifest's `environment` (`xla_flags`), which admits any string
+field.
+
+This is D4, transcribed from `tolerance.py` and the two case READMEs rather than invented,
+and it landed in `schemas/acceptance.v1.json` on 2026-09-24 (step 1). The ensemble-spread
+family stays `provisional` until a whole-model statistical case actually uses it.
+
+### 3.4 One evidence flow
+
+```
+engine writes one record per verdict        case/output/evidence/       tier 0, not committed (audit trail)
+case commits verification.json              case/                       tier 0, committed  (current state, diffable)
+release: make_manifest bundles              CC-Test evidence/<product>/<version>/
+    verification.json + benchmark criteria      manifest.json summary.md report.txt
+pull request into CC-Test, CI runs verify_evidence
+```
+
+The 8,498 per-verdict records do not enter CC-Test. One acceptance record per product version does;
+`cases[]` holds one row per benchmark case, and each case's rules range over every unit
+in the summary. The per-verdict record cannot honestly be a CC-Test acceptance record — it does not
+know the product repository, the benchmark, the machine or the compiler, and forcing it
+into that shape is how the engine came to write documents CC-Test's schema rejected on 19
+counts. So the engine's record is its own format, `recast.evidence.v1`
+(`Evidence.to_record()`, checked by `recast.conformance.evidence_record`), and the two
+vocabularies meet in one place: CC-Test's `make_manifest.py`, which reads the summary
+(`schema: 1`) under a `unit-differential` benchmark. The summary's shape is therefore the
+interface between the repositories, and `tests/fixtures/recast-summary.toy_physics.json`
+pins the copy CC-Test is tested against, with the engine commit it came from.
+
+### 3.5 Storage tiers, extended to recordings
+
+| Tier | Content | Where | Now |
+|---|---|---|---|
+| 0 | manifests, `verification.json`, `summaries/*.json` | git | fine |
+| 1 | recordings and closed-loop CSV/PNG under 2 GiB | release asset of the case repo, sha256 in the manifest | clm-ml-jax already does this for `recording-31day-20260830`; its ~800 MB of committed recordings move here |
+| 2 | full-case recordings (13 GB `recorded_full_gabls2`, the 2.6 GB ELM tower months) | local or HPC storage; manifest records location, sha256, byte count, expected purge | clubb-jax and recast-elm, once `RECORDING.md` gains the fingerprint |
+
+## 4. Migration order
+
+Each step is one reviewable pull request; none depends on a later one.
+
+| # | Step | Lands in | Why this position |
+|---|---|---|---|
+| 1 | **DONE 2026-09-24.** `unit-differential` acceptance kind in `acceptance.v1.json` with `unit_set_equal`, `confidence_at_least`, `ulp_tiered`, `nan_mask_equal`; `make_manifest.py` evaluates them from a RecastEngine summary and fingerprints it; format example and tests. Engine: `Evidence.to_manifest()` → `to_record()` emitting `recast.evidence.v1`, `conformance/manifest.py` → `evidence_record.py`, `cc_test` slot removed, docs corrected | CC-Test, engine | smallest change, largest defect |
+| 2 | **DONE 2026-09-24.** `benchmarks/clubb-jax/`: 15 cases, one per committed summary (`tier0`-`tier3`, `port`, `cases-{more,e3sm,scalars,late,multicol}-{numpy,jax}`), unit lists from the summaries, ungated units and conditioning waivers from the case README; every one evaluates PASS against clubb-jax `main` (`99c8b22f`, engine `e3c6717`). `benchmarks/clm-ml-jax/`: `port-day1`, `port-day15`, schema-valid but not evaluable until the case commits an engine `--summary` file (its `run_port.py` writes a merged verdict-string file instead). Rule-level `ungated` added to the acceptance vocabulary for known coverage gaps | CC-Test | criteria before evidence |
+| 3 | **DONE 2026-09-24.** `benchmarks/` holds `pycam5`, `freecam`, `clubb-jax`, `clm-ml-jax`; the four directories for products that do not exist are gone. `elm-jax` is added when step 7 creates the case repository | CC-Test | |
+| 4 | **DONE 2026-09-24, from clubb-jax rather than clm-ml-jax**, which is still blocked on its summary format (step 2). `evidence/clubb-jax/unreleased-99c8b22f/`: clubb-jax `99c8b22f` against CLUBB_core `8ab3902`, engine `e3c6717` under `recast-clubb`, validated 2026-09-21T19:44Z (the re-gate in clubb-jax PR #13); 15 cases, one per benchmark, all PASS; `evidence_class: complete`; `security.status: NOT_RUN`, because the Cyber gate has not been run against that commit. Each case's `outputs.files` fingerprints the summary it was judged from; the 14 GB of recordings stay local to the case and are not retained. Assembled with `make_manifest.py --no-probe` and explicit `--machine`/`--env` (invocation in `benchmarks/clubb-jax/README.md` "Re-evaluating"); `verify_evidence.py --artifact-checkout clubb-jax=...` reports 0 errors, 1 warning (NOT_RUN), 1 skipped check (append-only, no `--base-ref`). `correctness/index_evidence.py` regenerates `evidence/INDEX.md` (`--check` for staleness). Caveat: `cc_test.commit` is `86a46e8c`, the commit that holds the `unit-differential` kind, the benchmarks and the `make_manifest.py` changes that produced the record: those were committed first, the record assembled at that commit and committed after it. Invariant 7 only checks that the commit resolves, so this ordering is procedure, not something the verifier enforces. The PyCAM5 backfill (`VALIDATION-ARCHITECTURE.md` step 4) still waits on recovering the 2026-06-16 environment and is filed `reconstructed` if that fails | CC-Test `evidence/clubb-jax/` | first real run of the whole flow |
+| 5 | Move `compare_runpair.py` + `dataio.py` into the engine as `fullmodel.bitwise`; CAM reader into `recast-cesm`; delete PyCAM5's copy; freeCAM's `verify_pi_cam.py` calls the verifier. `compare_stats.py` follows as `fullmodel.statistical` | engine, recast-cesm, PyCAM5, freeCAM, CC-Test | D7 |
+| 6 | Fold the three cases' closed-loop, step-replay and gradient scripts into `forward_workload` / `finite_derivative`; cases keep only `recast run` invocations | engine, three cases | |
+| 7 | Split `recast-elm/case/` + `output/` into an `elm-jax` case repository; retire `RecastEngine-clubb` and `RecastEngine-elm` | recast-elm, new repo | |
+| 8 | `VALIDATION.md` + `validation.yml` in every case; register the Lean audit under `evidence/recastengine-pro/<commit>/` | cases, CC-Test | |
+| 9 | Move ownership of `tools/ templates/ hooks/ hpc/` to the engine's `recast.scan`; CC-Test README rewritten around D8 | engine, CC-Test | last, because the Cyber gate is in use today and must not lose a day |
+
+## 5. Non-goals
+
+- No change to the Cyber gate's behaviour while it moves; D8 changes who owns the code, not what it does.
+- No committed model output or recordings above tier 1 anywhere.
+- No attempt to make the Lean audit cover the JAX or Numba emitters; it is registered as evidence for the path it covers.
+- `RecastEngine` (public edition) is not reorganised here; mechanisms landing in Pro follow the existing tier boundary in `docs/tier/`.

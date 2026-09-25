@@ -30,6 +30,9 @@ export HPC_DEVSECOPS_AUDIT_ROOT="$TMP/audits"
 export RECAST_CAPTURE="$TMP/recast.argv"
 unset RECAST_AUDIT_RECIPE RECAST_HOME RECAST_BIN
 mkdir -p "$HOME" "$TMP/bin"
+# The tools run under a restricted PATH; give them the bash that runs this
+# script, so macOS's /usr/bin/bash 3.2 is not what asan.sh's `${s,,}` meets.
+ln -s "$BASH" "$TMP/bin/bash"
 BIN_PATH="$TMP/bin:/usr/bin:/bin"
 BARE_PATH="/usr/bin:/bin"
 

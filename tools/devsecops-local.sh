@@ -1,16 +1,25 @@
 #!/usr/bin/env bash
-# hpc-devsecops — local DevSecOps gate for HPC.
+# hpc-devsecops — local DevSecOps gate for HPC; the checks are RecastEngine's audit recipe.
 #
 # Usage: devsecops-local.sh [OPTIONS] [TARGET_REPO]
-#   --staged       audit the staged patch
-#   --worktree     audit tracked worktree changes
-#   --vs-remote    audit BASE..HEAD (default when an upstream exists)
+#   --vs-remote    audit BASE..HEAD (the default; needs an upstream or --base)
 #   --base REF     base ref for --vs-remote
 #   --range RANGE  audit an explicit Git revision range (used by pre-push)
 #   --block        fail on findings and fail closed on scanner errors
 #   --require-complete  block when any configured scan did not run (even without --block)
-#   --no-ai        explicitly disable the optional AI audit
+#   --no-ai        run the audit recipe without the LLM audit plane
+#   --staged, --worktree  not available: the engine's secret scan reads history, not a patch
 #   -h, --help     show this help
+#
+# What ran here -- gitleaks, syft/grype with VEX, the AI audit -- runs as
+# `recast run <recipe> <repo> --range <range> --gate-summary <out>/summary.json`
+# (step 9d of docs/CORRECTNESS-ORGANIZATION.md; RecastEngine's docs/cyber-gate.md
+# is the handoff). The recipe is `audit`, or `audit-cesm` for a repository that
+# opted into the AI audit (tools/engine.sh). The flags, the report directory
+# and the exit contract are what they were: 0 clean or report-only, 1
+# findings under --block, 2 an incomplete gate under --block /
+# --require-complete or a usage or environment error. summary.json is the
+# same file, written by the engine.
 
 set -uo pipefail
 
@@ -19,6 +28,9 @@ usage() {
 }
 
 die() { echo "hpc-devsecops: $*" >&2; exit 2; }
+
+# shellcheck source=tools/engine.sh
+. "$(cd "$(dirname "$0")" && pwd)/engine.sh"
 
 MODE=""
 BASE=""
@@ -30,9 +42,12 @@ REPO=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --staged|--worktree|--vs-remote)
+    --vs-remote)
       [ -z "$MODE" ] || die "choose only one audit mode"
-      MODE="${1#--}"
+      MODE="vs-remote"
+      ;;
+    --staged|--worktree)
+      die "$1 is not available: the engine's secret scan reads history, not a patch; use --vs-remote, --base REF or --range RANGE"
       ;;
     --base)
       [ $# -ge 2 ] || die "--base requires a ref"
@@ -57,197 +72,49 @@ REPO="${REPO:-$PWD}"
 REPO="$(cd "$REPO" 2>/dev/null && pwd)" || die "no such repo: $REPO"
 git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || die "not a git repo: $REPO"
 
-if [ -z "$MODE" ]; then
-  if git -C "$REPO" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
-    MODE="vs-remote"
-  else
-    MODE="worktree"
+[ -n "$MODE" ] || MODE="vs-remote"
+if [ "$MODE" = "vs-remote" ]; then
+  if [ -z "$BASE" ]; then
+    BASE="$(git -C "$REPO" rev-parse --abbrev-ref '@{u}' 2>/dev/null)" || die "no upstream; use --base REF or --range RANGE"
   fi
+  git -C "$REPO" rev-parse --verify "$BASE^{commit}" >/dev/null 2>&1 || die "invalid base ref: $BASE"
+  RANGE="$BASE..HEAD"
 fi
-if [ "$MODE" = "vs-remote" ] && [ -z "$BASE" ]; then
-  BASE="$(git -C "$REPO" rev-parse --abbrev-ref '@{u}' 2>/dev/null)"
-  [ -n "$BASE" ] || die "no upstream; use --base REF, --range RANGE, or --worktree"
-fi
-[ -z "$BASE" ] || git -C "$REPO" rev-parse --verify "$BASE^{commit}" >/dev/null 2>&1 || die "invalid base ref: $BASE"
-[ -z "$RANGE" ] || git -C "$REPO" rev-list "$RANGE" --max-count=1 >/dev/null 2>&1 || die "invalid revision range: $RANGE"
+git -C "$REPO" rev-list "$RANGE" --max-count=1 >/dev/null 2>&1 || die "invalid revision range: $RANGE"
 
 REPO_NAME="$(basename "$REPO")"
 TS="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-OUT_ROOT="${HPC_DEVSECOPS_AUDIT_ROOT:-$HOME/audits/hpc-devsecops}"
+OUT_ROOT="${HPC_DEVSECOPS_AUDIT_ROOT:-${RECAST_AUDIT_ROOT:-$HOME/audits/recast}}"
 OUT="$OUT_ROOT/$REPO_NAME/$TS"
 mkdir -p "$OUT" || die "cannot create report directory: $OUT"
 
-case "$MODE" in
-  staged)     git -C "$REPO" diff --cached --binary > "$OUT/pr.diff" || die "cannot create staged diff" ;;
-  worktree)   git -C "$REPO" diff HEAD --binary > "$OUT/pr.diff" || die "cannot create worktree diff" ;;
-  vs-remote)  git -C "$REPO" diff "$BASE..HEAD" --binary > "$OUT/pr.diff" || die "cannot diff $BASE..HEAD" ;;
-  range)      git -C "$REPO" diff "$RANGE" --binary > "$OUT/pr.diff" || die "cannot diff $RANGE" ;;
-  *) die "internal error: unsupported mode $MODE" ;;
-esac
+# The exit contract. 2 is "the gate did not complete", and it blocks only
+# when asked to; a report-only run says INCOMPLETE and exits 0, as before.
+finish() {
+  echo
+  case "$1" in
+    0) echo "PASS: all required/configured checks completed with no blocking findings" ;;
+    1) echo "FINDINGS: see the engine's report above; findings are in its store, not in $OUT"
+       [ "$BLOCK" = 1 ] && exit 1 ;;
+    *) echo "INCOMPLETE: one or more configured/required checks did not complete"
+       { [ "$BLOCK" = 1 ] || [ "$REQUIRE_COMPLETE" = 1 ]; } && exit 2 ;;
+  esac
+  exit 0
+}
 
-DIFF_LINES="$(wc -l < "$OUT/pr.diff")"
-echo "hpc-devsecops ▸ repo=$REPO mode=$MODE${BASE:+ base=$BASE}${RANGE:+ range=$RANGE}"
+RECAST="$(recast_bin)" || finish 2
+if [ "$DO_AI" = 0 ]; then
+  RECIPE="audit"
+else
+  RECIPE="$(audit_recipe "$REPO")" || finish 2
+fi
+CONFIG=(); [ -f "$REPO/.recast-audit.json" ] && CONFIG=(--config "$REPO/.recast-audit.json")
+
+echo "hpc-devsecops ▸ repo=$REPO mode=$MODE${BASE:+ base=$BASE} range=$RANGE recipe=$RECIPE"
 echo "          reports → $OUT"
 echo
-
-SECRETS=0; CVE_CRIT=0; CVE_HIGH=0; AI_HIGH=0
-GL_STATE="unavailable"; CVE_STATE="unavailable"; AI_STATE="skipped"
-
-# Secret scanning is range-aware. Patch modes scan the exact patch through stdin.
-if command -v gitleaks >/dev/null 2>&1; then
-  GL_CFG=(); [ -f "$REPO/.gitleaks.toml" ] && GL_CFG=(--config "$REPO/.gitleaks.toml")
-  if [ "$MODE" = "vs-remote" ] || [ "$MODE" = "range" ]; then
-    LOG_RANGE="${RANGE:-$BASE..HEAD}"
-    if gitleaks git "$REPO" "${GL_CFG[@]}" --log-opts="$LOG_RANGE" --report-format sarif \
-      --report-path "$OUT/gitleaks.sarif" --exit-code 0 >/dev/null 2>"$OUT/gitleaks.err"; then
-      GL_STATE="passed"
-    else
-      GL_STATE="error"
-    fi
-  elif gitleaks stdin "${GL_CFG[@]}" --report-format sarif \
-    --report-path "$OUT/gitleaks.sarif" --exit-code 0 < "$OUT/pr.diff" \
-    >/dev/null 2>"$OUT/gitleaks.err"; then
-    GL_STATE="passed"
-  else
-    GL_STATE="error"
-  fi
-  if [ "$GL_STATE" = "passed" ]; then
-    SECRETS="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["runs"][0].get("results", [])))' "$OUT/gitleaks.sarif" 2>/dev/null)" || GL_STATE="error"
-    if [ "$GL_STATE" = "passed" ] && [ "$SECRETS" -gt 0 ]; then GL_STATE="findings"; fi
-  fi
-fi
-echo "  gitleaks : $GL_STATE${SECRETS:+ (findings=$SECRETS)}"
-
-# Dependency analysis intentionally describes the resulting repository state,
-# rather than only the patch. The summary distinguishes it from diff-scoped scans.
-if command -v syft >/dev/null 2>&1 && command -v grype >/dev/null 2>&1; then
-  if syft scan "dir:$REPO" -o "spdx-json=$OUT/sbom.spdx.json" -q \
-      >/dev/null 2>"$OUT/syft.err" && [ -s "$OUT/sbom.spdx.json" ]; then
-    VEX=(); [ -f "$REPO/.vex/openvex.json" ] && VEX=(--vex "$REPO/.vex/openvex.json")
-    if grype "sbom:$OUT/sbom.spdx.json" --add-cpes-if-none "${VEX[@]}" \
-        -o json > "$OUT/grype.json" 2>"$OUT/grype.err"; then
-      COUNTS="$(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])).get("matches", []); s=[x.get("vulnerability",{}).get("severity") for x in m]; print(s.count("Critical"),s.count("High"))' "$OUT/grype.json" 2>/dev/null)"
-      if read -r CVE_CRIT CVE_HIGH <<< "$COUNTS" && [[ "$CVE_CRIT" =~ ^[0-9]+$ ]] && [[ "$CVE_HIGH" =~ ^[0-9]+$ ]]; then
-        CVE_STATE="passed"
-        [ "$CVE_CRIT" -gt 0 ] && CVE_STATE="findings"
-      else
-        CVE_STATE="error"
-      fi
-    else
-      CVE_STATE="error"
-    fi
-  else
-    CVE_STATE="error"
-  fi
-fi
-echo "  syft/grype: $CVE_STATE (Critical=$CVE_CRIT High=$CVE_HIGH; full repository state)"
-
-AUDIT="$REPO/.github/scripts/ai_audit.py"
-PYBIN="${HPC_DEVSECOPS_HOME:-$(cd "$(dirname "$0")/.." && pwd)}/.venv/bin/python"
-[ -x "$PYBIN" ] || PYBIN=python3
-ENV_FILE="$HOME/.config/hpc-devsecops.env"
-if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$ENV_FILE" ]; then
-  ENV_MODE="$(stat -c '%a' "$ENV_FILE" 2>/dev/null || echo unknown)"
-  case "$ENV_MODE" in
-    600|400)
-      # shellcheck source=/dev/null
-      . "$ENV_FILE"
-      ;;
-    *) echo "  ai-audit: refusing insecure env file mode $ENV_MODE ($ENV_FILE)" >&2 ;;
-  esac
-fi
-
-if [ "$DO_AI" = 0 ]; then
-  AI_STATE="skipped_by_user"
-elif [ ! -f "$AUDIT" ]; then
-  AI_STATE="not_configured"
-elif ! "$PYBIN" -c 'import anthropic' >/dev/null 2>&1; then
-  AI_STATE="unavailable"
-elif [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  AI_STATE="unavailable"
-else
-  if (cd "$OUT" && "$PYBIN" "$AUDIT" "$OUT/pr.diff" >/dev/null 2>"$OUT/ai-audit.err"); then
-    :
-  fi
-  if [ -f "$OUT/ai-audit.sarif" ]; then
-    AI_RESULT="$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1]))["runs"][0]; inv=r.get("invocations") or []; ok=bool(inv) and inv[0].get("executionSuccessful") is True; high=sum(x.get("level")=="error" for x in r.get("results",[])); print(int(ok),high)' "$OUT/ai-audit.sarif" 2>/dev/null)"
-    if read -r AI_OK AI_HIGH <<< "$AI_RESULT" && [ "${AI_OK:-0}" = 1 ] && [[ "$AI_HIGH" =~ ^[0-9]+$ ]]; then
-      AI_STATE="reviewed"
-      [ "$AI_HIGH" -gt 0 ] && AI_STATE="findings"
-    else
-      AI_HIGH=0; AI_STATE="error"
-    fi
-  else
-    AI_STATE="error"
-  fi
-fi
-echo "  ai-audit : $AI_STATE (high=$AI_HIGH)"
-
-FINDINGS=0; ERRORS=0
-[ "$GL_STATE" = "findings" ] && FINDINGS=1
-[ "$CVE_STATE" = "findings" ] && FINDINGS=1
-[ "$AI_STATE" = "findings" ] && FINDINGS=1
-case "$GL_STATE" in unavailable|error) ERRORS=1 ;; esac
-case "$CVE_STATE" in unavailable|error) ERRORS=1 ;; esac
-case "$AI_STATE" in unavailable|error) ERRORS=1 ;; esac
-
-OVERALL="passed"
-[ "$FINDINGS" = 1 ] && OVERALL="findings"
-[ "$ERRORS" = 1 ] && OVERALL="incomplete"
-{
-  echo "# hpc-devsecops report — $REPO_NAME @ $TS"
-  echo "overall=$OVERALL mode=$MODE base=${BASE:-} range=${RANGE:-} diff_lines=$DIFF_LINES"
-  echo "gitleaks_state=$GL_STATE secrets=$SECRETS"
-  echo "cve_state=$CVE_STATE cve_scope=full-repository cve_critical=$CVE_CRIT cve_high=$CVE_HIGH"
-  echo "ai_state=$AI_STATE ai_high=$AI_HIGH"
-} > "$OUT/summary.txt"
-
-# Machine-readable mirror of summary.txt — one JSON object CI or another tool can
-# read. Status is PASS / FINDINGS / INCOMPLETE, mirroring the exit contract below.
-STATUS="PASS"
-[ "$OVERALL" = "findings" ] && STATUS="FINDINGS"
-[ "$OVERALL" = "incomplete" ] && STATUS="INCOMPLETE"
-HEAD_SHA="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo unknown)"
-STATUS="$STATUS" REPO_NAME="$REPO_NAME" MODE="$MODE" BASEREF="${BASE:-}" RANGEREF="${RANGE:-}" \
-DIFF_LINES="$DIFF_LINES" HEAD_SHA="$HEAD_SHA" TS="$TS" \
-GL_STATE="$GL_STATE" SECRETS="$SECRETS" \
-CVE_STATE="$CVE_STATE" CVE_CRIT="$CVE_CRIT" CVE_HIGH="$CVE_HIGH" \
-AI_STATE="$AI_STATE" AI_HIGH="$AI_HIGH" \
-python3 - "$OUT/summary.json" <<'PY' 2>/dev/null || echo "  (could not write summary.json)" >&2
-import json, os, sys
-def num(v):
-    try: return int(v)
-    except (TypeError, ValueError): return None
-doc = {
-    "tool": "hpc-devsecops",
-    "status": os.environ.get("STATUS", "INCOMPLETE"),
-    "repo": os.environ.get("REPO_NAME", ""),
-    "commit": os.environ.get("HEAD_SHA", "unknown"),
-    "mode": os.environ.get("MODE", ""),
-    "base": os.environ.get("BASEREF") or None,
-    "range": os.environ.get("RANGEREF") or None,
-    "diff_lines": num(os.environ.get("DIFF_LINES")),
-    "timestamp": os.environ.get("TS", ""),
-    "scans": {
-        "secrets":  {"state": os.environ.get("GL_STATE", ""),  "findings": num(os.environ.get("SECRETS"))},
-        "cve":      {"state": os.environ.get("CVE_STATE", ""), "critical": num(os.environ.get("CVE_CRIT")),
-                     "high": num(os.environ.get("CVE_HIGH")), "scope": "full-repository"},
-        "ai_audit": {"state": os.environ.get("AI_STATE", ""),  "high": num(os.environ.get("AI_HIGH"))},
-    },
-}
-with open(sys.argv[1], "w") as fh:
-    json.dump(doc, fh, indent=2)
-    fh.write("\n")
-PY
-
-echo
-if [ "$ERRORS" = 1 ]; then
-  echo "INCOMPLETE: one or more configured/required checks did not complete"
-  { [ "$BLOCK" = 1 ] || [ "$REQUIRE_COMPLETE" = 1 ]; } && exit 2
-elif [ "$FINDINGS" = 1 ]; then
-  echo "FINDINGS: secrets=$SECRETS critical_cves=$CVE_CRIT ai_high=$AI_HIGH"
-  [ "$BLOCK" = 1 ] && exit 1
-else
-  echo "PASS: all required/configured checks completed with no blocking findings"
-fi
-exit 0
+"$RECAST" run "$RECIPE" "$REPO" --range "$RANGE" ${CONFIG[@]+"${CONFIG[@]}"} --gate-summary "$OUT/summary.json"
+rc=$?
+case "$rc" in 0|1|2) ;; *) rc=2 ;; esac
+[ -f "$OUT/summary.json" ] || { echo "hpc-devsecops: no summary.json was written" >&2; rc=2; }
+finish "$rc"
